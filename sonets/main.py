@@ -3,6 +3,7 @@ import os
 import tensorflow as tf
 import numpy as np
 from keras_tuner import BayesianOptimization
+from tensorflow.python.keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
 
 import xml2json
 import json2text
@@ -127,11 +128,16 @@ tuner.search(train_data,
 best_model = tuner.get_best_models(num_models=1)[0]
 tuner.results_summary()
 
-#model.fit(train_data,
-#          validation_data=test_data,
-#          epochs=10,
-#          steps_per_epoch=train_steps_per_epoch,
-#          validation_steps=val_steps_per_epoch,
-#          callbacks=[sample_generator])
+best_hyperparameters = tuner.get_best_hyperparameters(num_trials=1)[0]
+model = tuner.hypermodel.build(best_hyperparameters)
 
-print("")
+checkpoint = ModelCheckpoint('modele_epoch_{epoch:02d}.h5', save_freq=10*train_steps_per_epoch, save_best_only=True)
+reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10, min_lr=0.00001)
+
+model.fit(train_data,
+          validation_data=test_data,
+          epochs=1000,
+          steps_per_epoch=train_steps_per_epoch,
+          validation_steps=val_steps_per_epoch,
+          callbacks=[sample_generator, checkpoint, reduce_lr])
+
