@@ -82,38 +82,80 @@ namespace = {'tei': 'http://www.tei-c.org/ns/1.0'}
 sonnets = root.findall(".//tei:div[@type='sonnet']", namespace)
 
 # Convertir chaque élément sonnet en dictionnaire
-sonnets_dicts = [sonnet_to_dict(sonnet) for sonnet in sonnets][:2500] #2000
+sonnets_dicts = [sonnet_to_dict(sonnet) for sonnet in sonnets][:3500] #2000
 
 # Prétraitement des données
 titles = [sonnet["title"].replace(".", "") for sonnet in sonnets_dicts]
+titles_clean = []
+
+chars_to_replace = ['…', '‘', '|', '~', '`', '�', '■', 'µ', '[', ']', '(', ')', '\\', '/', '_', '!', ';', '-', '—',
+                        '–', ',', '.', '\'', '?', ':', '»', '«', '"', '>', '<', '•', '1', '2', '3', '4', '5', '6', '7',
+                        '8', '9', '0', '    ', '   ', '  ']
+
+for title in titles:
+    clean_line = title
+    for char in chars_to_replace:
+        clean_line = clean_line.replace(char, ' ')
+    clean_line.rstrip()
+    clean_line.replace(".", " . ").replace(",", " , ").replace("!", " ! ").replace("?", " ? ").replace(":", " : ").replace(
+        "’", " ’ ")
+    clean_line.replace('    ', ' ').replace('   ', ' ').replace('  ', ' ').replace('  ', ' ')
+    titles_clean.append(clean_line)
+
+with open('titles.txt', 'w', encoding='utf-8') as file:
+    for title in titles_clean:
+        file.write(title + '\n')
+
+tokenizer = Tokenizer(filters='\'…‘~"#$%&()*+-:;=@[\]`{|}~�■µ\\–»«•1234567890')  # »«
+tokenizer.fit_on_texts(titles_clean)
+
+with open('titles_words.txt', 'w', encoding='utf-8') as file:
+    for word in tokenizer.word_index.keys():
+        file.write(word + '\n')
+
+def number(num):
+    if num == 1:
+        return "A"
+    elif num == 2:
+        return "B"
+    elif num == 3:
+        return "C"
+    elif num == 4:
+        return "D"
 
 lengths = []
 sonnets_blocks = []
 for sonnet in sonnets_dicts:
     sonnets_block = " <start> "
+    n_strophe = 0
     for strophe in sonnet["lines"]:
-        sonnets_block += " <strophe> "
+        n_strophe +=1
+        sonnets_block += " <strophe" + number(n_strophe) + "> "
+        n_ligne = 0
         for line in strophe:
-            sonnets_block += " <ligne> "
+            n_ligne +=1
+            sonnets_block += " <ligne" + number(n_ligne) + "> "
 
-            words = line.split()
-            chars_to_replace = ['�', '■', 'µ', '[', ']', '(', ')', '\\', '/', '_', '!', ';', '-', '—', '–', ',', '.', '\'', '?', ':', '»', '«', '"', '>', '<', '•', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '    ', '   ', '  ']
+
             clean_line = line
             for char in chars_to_replace:
                 clean_line = clean_line.replace(char, ' ')
             clean_line.rstrip()
+            clean_line.replace('    ', ' ').replace('   ', ' ').replace('  ', ' ').replace('  ', ' ')
             #Hermès
             #faïencier
 
             if(clean_line.split()[-1] == "faïencier"):
                 rime = 's_c j_e_comp'
             else:
+                #print(clean_line.split()[-1])
                 phen3 = lirecouleur.word.phonemes(clean_line.split()[-1])
                 filtered_phen3 = [x[0] for x in phen3 if x[0] != "#"]
                 last_two = filtered_phen3[-2:]
                 rime = ' '.join(last_two)
             #print(clean_line.split()[-1], ' '.join(last_two))
 
+            words = clean_line.split()
             if len(words) > 2:
                 if(len(words[len(words)-1]) == 1):
                     words.insert(-2, "<rime> " + rime + " </rime>")
@@ -123,16 +165,21 @@ for sonnet in sonnets_dicts:
             # Reconstruct the line with the tag
             line = ' '.join(words)
 
-            sonnets_block += line.replace(".", " . ").replace(",", " , ").replace("!", " ! ").replace(":", " : ")
+            sonnets_block += line.replace(".", " . ").replace(",", " , ").replace("!", " ! ").replace("?", " ? ").replace(":", " : ").replace("’", " ’ ")
+            sonnets_block += " </ligne" + number(n_ligne) + "> "
+        sonnets_block += " </strophe" + number(n_strophe) + "> "
     sonnets_block += " <end> "
     sonnets_blocks.append(sonnets_block)
     lengths.append(len(sonnets_block))
 
-
 # Tokenisation
 #
-tokenizer = Tokenizer(filters='"#$%&()*+-/:;=@[\]`{|}~�■µ\\–»«•1234567890') #»«
+tokenizer = Tokenizer(filters='\'…‘~"#$%&()*+-:;=@[\]`{|}~�■µ\\–»«•1234567890') #»«
 tokenizer.fit_on_texts(titles + sonnets_blocks)
+
+with open('words.txt', 'w', encoding='utf-8') as file:
+    for word in tokenizer.word_index.keys():
+        file.write(word + '\n')
 
 assert '<start>' in tokenizer.word_index
 assert '<end>' in tokenizer.word_index
@@ -157,7 +204,7 @@ decoder_output_data_shifted = pad_sequences(decoder_output_data_shifted, maxlen=
 decoder_output_data = tf.keras.utils.to_categorical(decoder_output_data_shifted, num_classes=total_words)
 
 # définir la taille de votre batch
-BATCH_SIZE = 10
+BATCH_SIZE = 5
 # Hyperparamètres initiaux et configuration du modèle
 def build_model():
     # Encodeur
@@ -166,6 +213,7 @@ def build_model():
     REG = 0.0001
     lstm_units = 128
     embedding_dim = 128 #128
+    num_heads = 8
 
     encoder_input = keras.Input(shape=(max_input_len,))
     encoder_embedding = layers.Embedding(
@@ -188,7 +236,7 @@ def build_model():
     state_c = layers.Concatenate()([forward_c, backward_c])
     encoder_states = [state_h, state_c]
 
-    encoder_attention = layers.MultiHeadAttention(num_heads=8, key_dim=embedding_dim)
+    encoder_attention = layers.MultiHeadAttention(num_heads=num_heads, key_dim=embedding_dim)
     encoder_attention_output = encoder_attention(query=encoder_output, key=encoder_output, value=encoder_output)
     encoder_output = layers.Concatenate(axis=-1)([encoder_output, encoder_attention_output])
 
@@ -208,7 +256,7 @@ def build_model():
         bias_regularizer=keras.regularizers.l2(REG)
     )(decoder_embedding, initial_state=encoder_states)
 
-    attention = layers.MultiHeadAttention(num_heads=8, key_dim=embedding_dim)
+    attention = layers.MultiHeadAttention(num_heads=num_heads, key_dim=embedding_dim)
     attention_output = attention(query=decoder_output, key=encoder_output, value=encoder_output)
 
     decoder_concat = layers.Concatenate(axis=-1)([decoder_output, attention_output])
@@ -248,15 +296,18 @@ val_generator = data_generator(input_sequences, decoder_input_data, decoder_outp
 train_steps_per_epoch = len(train_indices) // BATCH_SIZE
 val_steps_per_epoch = len(val_indices) // BATCH_SIZE
 
-LOAD = False
-if LOAD == True :
-    model = load_model('modele_epoch_05.h5')
-else:
-    model = build_model()
+
 checkpoint = ModelCheckpoint('modele_epoch_{epoch:02d}.h5', save_freq=1000)
-title_sample = "Amour fou"
+title_sample = "Le fils du boucher"
 display_callback = DisplayOutput(title_sample, tokenizer, max_input_len, max_output_len, interval=1)
 reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=5, min_lr=0.0001)
+
+LOAD = True
+if LOAD == True :
+    model = load_model('modele_epoch_02.h5')
+    print(display_callback.generate_sonnet(model, title_sample, tokenizer, max_input_len, max_output_len))
+else:
+    model = build_model()
 
 model.fit(train_generator,
           steps_per_epoch=train_steps_per_epoch,
