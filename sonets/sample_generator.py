@@ -27,18 +27,18 @@ class GenerateSample(Callback):
         curr_seq = [self.tokenizer.word_index['<sonnet>']]
         generated_text = []
 
-        for _ in range(self.max_decoder_seq_length):
+        for i in range(self.max_decoder_seq_length):
             decoder_input_data = pad_sequences([curr_seq], maxlen=self.max_decoder_seq_length, padding='post')
 
             # Prédiction du mot suivant
             predictions = model.predict([encoder_input_data, decoder_input_data], verbose=False)
-            next_word_idx = np.argmax(predictions[0], axis=-1)[-1]  # -1 pour obtenir le dernier mot prédit
+            next_word_idx = np.argmax(predictions[0], axis=-1)
 
-            if next_word_idx == 0:  # Si c'est un padding, on continue
+            if next_word_idx[i] == 0:  # Si c'est un padding, on continue
                 continue
 
-            curr_seq.append(next_word_idx)
-            next_word = self.tokenizer.index_word[next_word_idx]
+            curr_seq.append(next_word_idx[i])
+            next_word = self.tokenizer.index_word[next_word_idx[i]]
             generated_text.append(next_word)
 
             # Si le token '</sonnet>' est atteint, arrêter la prédiction

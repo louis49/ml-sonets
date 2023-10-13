@@ -34,7 +34,8 @@ La forme de chaque sonnet est :
     </stropheD>
 </sonnet>
 ``` 
-* text2seq.py : Converti les String du sonnet au format tf.Record
+* text2seq.py : Converti les String du sonnet au format tf.Record et permet de charger ces données par la suite
+* model_class.py : Spécification du modèle de l'autoencoder
 * sample_generator.py : Classe appelée pour afficher le résultat de la génération sur la base du titre : 
 ``` "<sonnet> <title> Amour fou </title>  <stropheA>  <lineA>"``` 
 
@@ -46,4 +47,3 @@ Les hyper paramètres ont été définis en utilisant [keras_tuner](https://kera
 
 MIT
 
-Exemple de sonnet généré après X Epochs : 
