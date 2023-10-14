@@ -8,16 +8,13 @@ class SonnetModel():
         self.total_words = total_words
 
     def build_model(self, hp):
-        LSTM_MAX = 512
-        DIM_MAX = 512
-        HEAD_MAX = 8
 
-        lstm_units = hp.Int("lstm_units", min_value=8, max_value=LSTM_MAX, step=8, default=LSTM_MAX)  # 8-128
-        embedding_dim = hp.Int("embedding_dim", min_value=8, max_value=DIM_MAX, step=8, default=DIM_MAX)  # 8-128
-        learning_rate = hp.Float('learning_rate', min_value=1e-5, max_value=1e-2, sampling='log')
-        drop_out = hp.Float('drop_out', min_value=0.0, max_value=1.0, default=0.5)
-        regularizer = hp.Float('regularizer', min_value=1e-5, max_value=1e-2, sampling='log')
-        num_heads = hp.Int("num_heads", min_value=1, max_value=HEAD_MAX, step=1, default=HEAD_MAX)
+        lstm_units = hp.Int("lstm_units", min_value=8, max_value=512, step=8, default=168)
+        embedding_dim = hp.Int("embedding_dim", min_value=8, max_value=512, step=8, default=184)
+        learning_rate = hp.Float('learning_rate', min_value=1e-5, max_value=1e-2, sampling='log', default=0.001)
+        drop_out = hp.Float('drop_out', min_value=0.0, max_value=1.0, default=0.38)
+        regularizer = hp.Float('regularizer', min_value=1e-5, max_value=1e-2, sampling='log', default=0.0001)
+        num_heads = hp.Int("num_heads", min_value=3, max_value=24, step=1, default=12)
 
         encoder_input = keras.Input(shape=(self.input_dim,))
         encoder_embedding = layers.Embedding(

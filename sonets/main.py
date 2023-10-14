@@ -2,8 +2,10 @@ import json
 import os
 import tensorflow as tf
 import numpy as np
-from keras_tuner import BayesianOptimization
+from keras_tuner import BayesianOptimization, HyperParameters
 from tensorflow.python.keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
+from keras.models import load_model
+from tensorflow.saved_model import SaveOptions
 
 import xml2json
 import json2text
@@ -13,6 +15,10 @@ import model_class
 
 JSON_PATH = "sonnets.json"
 TEXT_PATH = "sonnets.txt"
+MODEL_PATH = "model.h5"
+USE_TUNER = False
+INPUT_TEXT = "<sonnet> <title> Pâques Fleuries </title>"
+BATCH_SIZE = 10
 
 dictionary = {}
 if os.path.exists(JSON_PATH):
@@ -39,99 +45,108 @@ max_len = text2seq.load_max_len("max_len.json")
 total_words = len(tokenizer.word_index) + 1
 
 
-def generate_data(dataset, total_words, batch_size):
+def generate_data(dataset, tokenizer, total_words, max_len, batch_size):
     encoder_inputs = []
     decoder_inputs = []
     decoder_outputs = []
 
-    total = 0
-    call = 0
+    end_title_id = tokenizer.word_index['</title>']
 
     for item in dataset:
         sequences = item['sequence'].numpy()
-        for seq in sequences:
-            encoder_input = seq
-            decoder_input = np.zeros_like(seq)
-            decoder_input[1:] = seq[:-1]
-            decoder_output = tf.keras.utils.to_categorical(seq, num_classes=total_words)
+        for full_sequence in sequences:
+            title_end_idx = np.where(full_sequence == end_title_id)[0][0]
+            title_sequence = full_sequence[:title_end_idx + 1]  # Include the </title> token
+            sonnet_sequence = full_sequence[title_end_idx + 1:]  # Start after the </title> token
 
-            encoder_inputs.append(encoder_input)
+            title_sequence = np.pad(title_sequence, (0, max_len - len(title_sequence)))
+            encoder_inputs.append(title_sequence)
+
+            decoder_input = np.zeros_like(sonnet_sequence)
+            decoder_input[1:] = sonnet_sequence[:-1]
+            decoder_input = np.pad(decoder_input, (0, max_len - len(decoder_input)))
             decoder_inputs.append(decoder_input)
+
+            sonnet_sequence = np.pad(sonnet_sequence, (0, max_len - len(sonnet_sequence)))
+            decoder_output = tf.keras.utils.to_categorical(sonnet_sequence, num_classes=total_words)
             decoder_outputs.append(decoder_output)
 
             if len(encoder_inputs) == batch_size:
-                total += batch_size
-                call += 1
-                #print("total : " + str(total) + " - call : " + str(call))
-                #print("generating " + str(len(encoder_inputs)) + "samples - " + str(batch_size) + " batch_size")
-                #print(encoder_input.shape, decoder_input.shape, decoder_output.shape)
                 yield (tuple([tf.convert_to_tensor(np.array(encoder_inputs), dtype=tf.int32),
                               tf.convert_to_tensor(np.array(decoder_inputs), dtype=tf.int32)]),
                        tf.convert_to_tensor(np.array(decoder_outputs), dtype=tf.int32))
                 encoder_inputs = []
                 decoder_inputs = []
                 decoder_outputs = []
-    #print("Fin DATASET - " + "total : " + str(total) + " - call : " + str(call))
 
-batch_size = 10
 
-train_samples = text2seq.count_tfrecord_samples("data.tfrecord")#4820
+train_samples = text2seq.count_tfrecord_samples("data.tfrecord")
 val_samples = text2seq.count_tfrecord_samples("data_val.tfrecord")
 
-train_steps_per_epoch = train_samples // batch_size
-val_steps_per_epoch = val_samples // batch_size
+train_steps_per_epoch = train_samples // BATCH_SIZE
+val_steps_per_epoch = val_samples // BATCH_SIZE
 
-#print("steps_per_epoch : " + str(train_steps_per_epoch) + " - batch_size : " + str(batch_size))
-#print("val_steps_per_epoch : " + str(val_steps_per_epoch) + " - batch_size : " + str(batch_size))
-
-train_dataset = text2seq.load_from_tfrecord("data.tfrecord", max_len, batch_size)
-#k = generate_data(train_dataset, total_words, batch_size)
-
-train_data = tf.data.Dataset.from_generator(lambda: generate_data(train_dataset, total_words, batch_size),
+train_dataset = text2seq.load_from_tfrecord("data.tfrecord", max_len, BATCH_SIZE)
+#k = generate_data(train_dataset, tokenizer, total_words, max_len, BATCH_SIZE)
+train_data = tf.data.Dataset.from_generator(lambda: generate_data(train_dataset, tokenizer, total_words, max_len, BATCH_SIZE),
                                             output_signature=(
-                                                (tf.TensorSpec(shape=(batch_size, None), dtype=tf.int32),
-                                                 tf.TensorSpec(shape=(batch_size, None), dtype=tf.int32)),
-                                                tf.TensorSpec(shape=(batch_size, None, total_words), dtype=tf.int32)
+                                                (tf.TensorSpec(shape=(BATCH_SIZE, None), dtype=tf.int32),
+                                                 tf.TensorSpec(shape=(BATCH_SIZE, None), dtype=tf.int32)),
+                                                tf.TensorSpec(shape=(BATCH_SIZE, None, total_words), dtype=tf.int32)
                                             )).repeat()
-test_dataset = text2seq.load_from_tfrecord("data_val.tfrecord", max_len, batch_size)
-test_data = tf.data.Dataset.from_generator(lambda: generate_data(test_dataset, total_words, batch_size),
-                                            output_signature=(
-                                                (tf.TensorSpec(shape=(batch_size, None), dtype=tf.int32),
-                                                 tf.TensorSpec(shape=(batch_size, None), dtype=tf.int32)),
-                                                tf.TensorSpec(shape=(batch_size, None, total_words), dtype=tf.int32)
-                                            )).repeat()
+test_dataset = text2seq.load_from_tfrecord("data_val.tfrecord", max_len, BATCH_SIZE)
+test_data = tf.data.Dataset.from_generator(lambda: generate_data(test_dataset, tokenizer,total_words, max_len, BATCH_SIZE),
+                                           output_signature=(
+                                               (tf.TensorSpec(shape=(BATCH_SIZE, None), dtype=tf.int32),
+                                                tf.TensorSpec(shape=(BATCH_SIZE, None), dtype=tf.int32)),
+                                               tf.TensorSpec(shape=(BATCH_SIZE, None, total_words), dtype=tf.int32)
+                                           )).repeat()
 
-input_text = "<sonnet> <title> Amour fou </title>  <stropheA>  <lineA>"
-sample_generator = sample_generator.GenerateSample(input_text=input_text, tokenizer=tokenizer, total_words=total_words, max_decoder_seq_length=max_len, max_encoder_seq_length=max_len)
 
-#model = sonnet_model.get_model(max_len, total_words)
 
 sonnetModel = model_class.SonnetModel(max_len, max_len, total_words)
 
-tuner = BayesianOptimization(
-    sonnetModel.build_model,
-    objective='val_accuracy',
-    max_trials=100,
-    executions_per_trial=1,
-    directory='tuner',
-    project_name='sonnets',
-    num_initial_points=10
-)
+best_hyperparameters = HyperParameters()
+best_hyperparameters.Fixed('lstm_units', value=168)#168
+best_hyperparameters.Fixed('embedding_dim', value=184)#184
+best_hyperparameters.Fixed('learning_rate', value=0.001)#0.001
+best_hyperparameters.Fixed('drop_out', value=0.38573)#0.38573
+best_hyperparameters.Fixed('regularizer', value=0.0001)#0.0001
+best_hyperparameters.Fixed('num_heads', value=4)#10
 
-tuner.search(train_data,
-             validation_data=test_data,
-             epochs=1,
-             steps_per_epoch=train_steps_per_epoch,
-             validation_steps=val_steps_per_epoch
-             )
+if USE_TUNER:
+    tuner = BayesianOptimization(
+        sonnetModel.build_model,
+        objective='val_accuracy',
+        max_trials=100,
+        executions_per_trial=1,
+        directory='tuner',
+        project_name='sonnets',
+        num_initial_points=10
+    )
+    tuner.search(train_data,
+                 validation_data=test_data,
+                 epochs=10,
+                 steps_per_epoch=train_steps_per_epoch,
+                 validation_steps=val_steps_per_epoch
+                 )
+    best_hyperparameters = tuner.get_best_hyperparameters(num_trials=1)[0]
 
-best_model = tuner.get_best_models(num_models=1)[0]
-tuner.results_summary()
+model = sonnetModel.build_model(best_hyperparameters)
+if os.path.exists(MODEL_PATH):
+    model.load_weights(MODEL_PATH)
 
-best_hyperparameters = tuner.get_best_hyperparameters(num_trials=1)[0]
-model = tuner.hypermodel.build(best_hyperparameters)
-
-checkpoint = ModelCheckpoint('modele_epoch_{epoch:02d}.h5', save_freq=10*train_steps_per_epoch, save_best_only=True)
+sample_generator = sample_generator.GenerateSample(input_text=INPUT_TEXT, tokenizer=tokenizer, total_words=total_words,
+                                                   max_decoder_seq_length=max_len, max_encoder_seq_length=max_len, every_epoch=1)
+save_options = tf.saved_model.SaveOptions()
+checkpoint = ModelCheckpoint(MODEL_PATH,
+                             save_freq='epoch',
+                             monitor='val_accuracy',
+                             save_best_only=True,
+                             mode="max",
+                             save_weights_only=False,
+                             #options=save_options,
+                             )
 reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10, min_lr=0.00001)
 
 model.fit(train_data,
@@ -139,5 +154,4 @@ model.fit(train_data,
           epochs=100,
           steps_per_epoch=train_steps_per_epoch,
           validation_steps=val_steps_per_epoch,
-          callbacks=[sample_generator, checkpoint, reduce_lr])
-
+          callbacks=[checkpoint, reduce_lr, sample_generator])
