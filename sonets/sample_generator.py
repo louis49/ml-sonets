@@ -15,7 +15,7 @@ class GenerateSample(Callback):
         self.every_epoch = every_epoch
 
     def on_epoch_end(self, epoch, logs=None):
-        if epoch % self.every_epoch == 0 and epoch > 0:
+        if epoch % self.every_epoch == 0:
             generated_text = self.generate_text(self.model)
             print("\nSample generation at epoch {}: \n{}".format(epoch + 1, generated_text))
 
@@ -25,7 +25,7 @@ class GenerateSample(Callback):
 
         i = len(curr_seq)
         while i < self.max_decoder_seq_length:
-            encoder_input_data = pad_sequences([curr_seq], maxlen=self.max_decoder_seq_length, padding='post')
+            encoder_input_data = pad_sequences([curr_seq], maxlen=self.max_encoder_seq_length, padding='post')
             decoder_input_data = pad_sequences([curr_seq], maxlen=self.max_decoder_seq_length, padding='post')
 
             # Prédiction du mot suivant
@@ -54,19 +54,19 @@ class GenerateSample(Callback):
 
     def format_sonnet(self, sonnet):
         # Supprimer les balises <sonnet>, <title>, </title>, </sonnet>
-        sonnet = re.sub(r'<sonnet>|<title>|</title>|</sonnet>', '', sonnet)
+        #sonnet = re.sub(r'<sonnet>|<title>|</title>|</sonnet>', '', sonnet)
 
         # Supprimer les espaces en début de texte
         sonnet = re.sub(r'^ +', '', sonnet)
 
         # Remplacer les balises <strophe[A-D]> et <line[A-D]> par un saut de ligne
-        sonnet = re.sub(r'<strophe[a-d]>|<line[a-d]>', '\n', sonnet)
+        #sonnet = re.sub(r'<strophe[a-d]>|<line[a-d]>', '\n', sonnet)
 
         # Supprimer les balises de fermeture </strophe[A-D]> et </line[A-D]>
-        sonnet = re.sub(r'</strophe[a-d]>|</line[a-d]>', '', sonnet)
+        #sonnet = re.sub(r'</strophe[a-d]>|</line[a-d]>', '', sonnet)
 
         # Supprimer tout le contenu entre les balises <rime> et </rime>, ainsi que les balises elles-mêmes
-        sonnet = re.sub(r'<rime>.*?</rime>', '', sonnet)
+        #sonnet = re.sub(r'<rime>.*?</rime>', '', sonnet)
 
         # Supprimer les doubles espaces et les espaces en début de texte
         sonnet = re.sub(r' +|^ +', ' ', sonnet)

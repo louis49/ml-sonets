@@ -12,7 +12,7 @@ class SonnetModel():
         lstm_units = hp.Int("lstm_units", min_value=8, max_value=512, step=8, default=168)
         embedding_dim = hp.Int("embedding_dim", min_value=8, max_value=512, step=8, default=184)
         learning_rate = hp.Float('learning_rate', min_value=1e-5, max_value=1e-2, sampling='log', default=0.001)
-        drop_out = hp.Float('drop_out', min_value=0.0, max_value=1.0, default=0.38)
+        drop_out = hp.Float('drop_out', min_value=0.0, max_value=1.0, step=0.05,default=0.38)
         regularizer = hp.Float('regularizer', min_value=1e-5, max_value=1e-2, sampling='log', default=0.0001)
         num_heads = hp.Int("num_heads", min_value=3, max_value=24, step=1, default=12)
 

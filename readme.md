@@ -3,7 +3,8 @@
 Sur la base de [The Oupoco Database of French Sonnets from the 19th Century](https://openhumanitiesdata.metajnl.com/articles/10.5334/johd.89), ce dataset contient 4820 sonnets du 19ème siecle en Français.
 
 ## Contenu
-* main.py : Entrée principale du code
+* main.py : Entrée principale du code - modifiez la variable USE_TUNER pour lancer le Tuner ou non (Les meilleurs hyperparamètres que trouvés seront utilisés sinon)
+Lors de l'apprentissage, un exemple de génération est executé à chaque epoch
 * xml2json.py : Converti le fichier xml source en json pour une meilleure lisibilité
 * json2text.py : Converti les données du sonnet en String en ajoutant les tags nécessaires à l'apprentissage et en nettoyant légèrement les données (caratères spéciaux, espaces etc...)
 La forme de chaque sonnet est : 
@@ -44,6 +45,5 @@ Les hyper paramètres ont été définis en utilisant [keras_tuner](https://kera
 
 
 # License
-
 MIT
 
