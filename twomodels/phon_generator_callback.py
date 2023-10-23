@@ -13,8 +13,11 @@ class PhonGenerator(Callback):
 
     def on_epoch_end(self, epoch, logs=None):
         if epoch % self.every_epoch == 0:
-            generated_text = self.generate_text("SONNET POUR LA MORT DE SON AMIE")
-            print("\nSample generation at epoch {}: \n{}".format(epoch + 1, generated_text))
+            text_1 = "SONNET POUR LA MORT DE SON AMIE"
+            text_2 = "Amour fou"
+            generated_text_1 = self.generate_text(text_1)
+            generated_text_2 = self.generate_text(text_2)
+            print("\nSample generation at epoch {}: \n{} \n{}".format(epoch + 1, text_1 + ' ' + generated_text_1, text_2 + ' ' + generated_text_2))
 
     def generate_text(self, input_title):
         tokenized_title = self.data.title_tokenizer.texts_to_sequences([input_title])[0]

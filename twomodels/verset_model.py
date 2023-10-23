@@ -38,11 +38,19 @@ class VersetModel():
         num_heads = hp.Int("num_heads", min_value=1, max_value=16, step=1, default=12)
 
         # Entrées
-        encoder_input = Input(shape=(self.data.title_max_size,), dtype="int32", name="title_input")
-        encoder_embedding = layers.Embedding(self.data.title_words, embedding_dim)(encoder_input)
-        encoder_embedding = layers.LayerNormalization()(encoder_embedding)
-        encoder_embedding = layers.Dropout(drop_out)(encoder_embedding)
-        encoder_output, forward_h, forward_c, backward_h, backward_c = layers.Bidirectional(layers.LSTM(
+        encoder_input_title = Input(shape=(self.data.title_max_size,), dtype="int32", name="title_input")
+        encoder_input_phons = Input(shape=(self.data.phon_max_size,), dtype="int32", name="phons_input")
+
+        encoder_embedding_title = layers.Embedding(self.data.title_words, embedding_dim)(encoder_input_title)
+        encoder_embedding_phons = layers.Embedding(self.data.phon_words, embedding_dim)(encoder_input_phons)
+
+        encoder_embedding_title = layers.LayerNormalization()(encoder_embedding_title)
+        encoder_embedding_title = layers.Dropout(drop_out)(encoder_embedding_title)
+
+        encoder_embedding_phons = layers.LayerNormalization()(encoder_embedding_phons)
+        encoder_embedding_phons = layers.Dropout(drop_out)(encoder_embedding_phons)
+
+        encoder_output_title, forward_h_title, forward_c_title, backward_h_title, backward_c_title = layers.Bidirectional(layers.LSTM(
             lstm_units,
             return_state=True,
             return_sequences=True,
@@ -51,18 +59,36 @@ class VersetModel():
             kernel_regularizer=regularizers.l1_l2(regularizer),
             recurrent_regularizer=regularizers.l1_l2(regularizer),
             bias_regularizer=regularizers.l1_l2(regularizer)
-        ))(encoder_embedding)
-        state_h = layers.Concatenate()([forward_h, backward_h])
-        state_c = layers.Concatenate()([forward_c, backward_c])
-        encoder_states = [state_h, state_c]
+        ))(encoder_embedding_title)
+        state_h_title = layers.Concatenate()([forward_h_title, backward_h_title])
+        state_c_title = layers.Concatenate()([forward_c_title, backward_c_title])
+
+        encoder_output_phons, forward_h_phons, forward_c_phons, backward_h_phons, backward_c_phons = layers.Bidirectional(
+            layers.LSTM(
+                lstm_units,
+                return_state=True,
+                return_sequences=True,
+                # dropout=DROP_OUT,
+                # recurrent_dropout=DROP_OUT,
+                kernel_regularizer=regularizers.l1_l2(regularizer),
+                recurrent_regularizer=regularizers.l1_l2(regularizer),
+                bias_regularizer=regularizers.l1_l2(regularizer)
+            ))(encoder_embedding_phons)
+        state_h_phons = layers.Concatenate()([forward_h_phons, backward_h_phons])
+        state_c_phons = layers.Concatenate()([forward_c_phons, backward_c_phons])
+
+        combined_state_h = layers.Concatenate()([state_h_title, state_h_phons])
+        combined_state_c = layers.Concatenate()([state_c_title, state_c_phons])
+
+        combined_encoder_output = layers.Concatenate(axis=-1)([encoder_output_title, encoder_output_phons])
 
         encoder_attention = layers.MultiHeadAttention(num_heads=num_heads, key_dim=embedding_dim)
-        encoder_attention_output = encoder_attention(query=encoder_output, key=encoder_output, value=encoder_output)
-        encoder_output = layers.Concatenate(axis=-1)([encoder_output, encoder_attention_output])
+        encoder_attention_output = encoder_attention(query=combined_encoder_output, key=combined_encoder_output, value=combined_encoder_output)
 
+        encoder_output = layers.Concatenate(axis=-1)([combined_encoder_output, encoder_attention_output])
 
-        decoder_input = Input(shape=(self.data.phon_max_size*14+1,), dtype="int32", name="decoder_input")
-        decoder_embedding = layers.Embedding(self.data.phon_words, embedding_dim)(decoder_input)
+        decoder_input = Input(shape=(self.data.title_max_size,), dtype="int32", name="decoder_input")
+        decoder_embedding = layers.Embedding(self.data.title_words, embedding_dim)(decoder_input)
         decoder_embedding = layers.LayerNormalization()(decoder_embedding)
         decoder_embedding = layers.Dropout(drop_out)(decoder_embedding)
         decoder_output, _, _ = layers.LSTM(
@@ -74,18 +100,18 @@ class VersetModel():
             kernel_regularizer=regularizers.l1_l2(regularizer),
             recurrent_regularizer=regularizers.l1_l2(regularizer),
             bias_regularizer=regularizers.l1_l2(regularizer)
-        )(decoder_embedding, initial_state=encoder_states)
+        )(decoder_embedding, initial_state=[combined_state_h, combined_state_c])
 
         attention = layers.MultiHeadAttention(num_heads=num_heads, key_dim=embedding_dim)
         attention_output = attention(query=decoder_output, key=encoder_output, value=encoder_output)
 
         decoder_concat = layers.Concatenate(axis=-1)([decoder_output, attention_output])
 
-        decoder_dense = layers.TimeDistributed(layers.Dense(self.data.phon_words+1, activation='softmax'))
+        decoder_dense = layers.TimeDistributed(layers.Dense(self.data.text_words+1, activation='softmax'))
         decoder_outputs = decoder_dense(decoder_concat)
 
         # Création du modèle
-        model = Model(inputs=[encoder_input, decoder_input], outputs=decoder_outputs)
+        model = Model(inputs=[encoder_input_title, encoder_input_phons, decoder_input], outputs=decoder_outputs)
 
         # Compilation du modèle
         model.compile(optimizer=optimizers.legacy.Adam(learning_rate=learning_rate),
