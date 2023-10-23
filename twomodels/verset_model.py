@@ -6,15 +6,14 @@ from keras_tuner import BayesianOptimization, HyperParameters, Objective
 from tensorflow.python.data import Dataset
 import tensorflow as tf
 
-from data import Data, MODEL_1_SEQ_BLACK_PATH, MODEL_1_SEQ_BLACK_TEST_PATH
+from data import Data, MODEL_2_SEQ_BLACK_PATH, MODEL_2_SEQ_BLACK_TEST_PATH
 from phon_generator_callback import PhonGenerator
 from tensorflow.python.keras.callbacks import Callback
 
 BATCH_SIZE = 10
-MODEL_1_PATH = "model/phon_model.h5"
+MODEL_2_PATH = "model/verset_model.h5"
 
 global CURRENT_EPOCH
-#CURRENT_EPOCH = 0
 
 class EpochCallback(Callback):
     def __init__(self):
@@ -26,7 +25,7 @@ class EpochCallback(Callback):
         global CURRENT_EPOCH
         CURRENT_EPOCH = epoch
 
-class PhonModel():
+class VersetModel():
     def __init__(self, data: Data):
         self.data = data
 
@@ -98,34 +97,36 @@ class PhonModel():
     def train(self, use_tuner=False):
         def generator_wrapper_train():
             #print("Run generator_wrapper_train - epoch : {}".format(CURRENT_EPOCH))
-            for data in self.data.generate_data_phon(BATCH_SIZE, epoch_size_train // BATCH_SIZE, CURRENT_EPOCH, True):
+            for data in self.data.generate_data_verset(BATCH_SIZE, epoch_size_train // BATCH_SIZE, CURRENT_EPOCH, True):
                 yield data
 
         def generator_wrapper_test():
-            for data in self.data.generate_data_phon(BATCH_SIZE, epoch_size_test // BATCH_SIZE, CURRENT_EPOCH, False):
+            for data in self.data.generate_data_verset(BATCH_SIZE, epoch_size_test // BATCH_SIZE, CURRENT_EPOCH, False):
                 yield data
 
         epoch_callback = EpochCallback()
 
-        epoch_size_train = self.data.count_tfrecord_samples(MODEL_1_SEQ_BLACK_PATH)
-        epoch_size_test = self.data.count_tfrecord_samples(MODEL_1_SEQ_BLACK_TEST_PATH)
+        epoch_size_train = self.data.count_tfrecord_samples(MODEL_2_SEQ_BLACK_PATH)
+        epoch_size_test = self.data.count_tfrecord_samples(MODEL_2_SEQ_BLACK_TEST_PATH)
 
         train_data = Dataset.from_generator(
             generator_wrapper_train,
             output_signature=(
                 (tf.TensorSpec(shape=(None, self.data.title_max_size), dtype=tf.int32),
-                 tf.TensorSpec(shape=(None, self.data.phon_max_size*14+1), dtype=tf.int32),
+                 tf.TensorSpec(shape=(None, self.data.phon_max_size), dtype=tf.int32),
+                 tf.TensorSpec(shape=(None, self.data.title_max_size-1), dtype=tf.int32),
                  ),
-                tf.TensorSpec(shape=(None, self.data.phon_max_size*14+1, self.data.phon_words+1), dtype=tf.float32)
+                tf.TensorSpec(shape=(None, self.data.title_max_size-1, self.data.title_words+1), dtype=tf.float32)
             )).repeat()
 
         test_data = Dataset.from_generator(
             generator_wrapper_test,
             output_signature=(
                 (tf.TensorSpec(shape=(None, self.data.title_max_size), dtype=tf.int32),
-                 tf.TensorSpec(shape=(None, self.data.phon_max_size*14+1), dtype=tf.int32),
+                 tf.TensorSpec(shape=(None, self.data.phon_max_size), dtype=tf.int32),
+                 tf.TensorSpec(shape=(None, self.data.title_max_size - 1), dtype=tf.int32),
                  ),
-                tf.TensorSpec(shape=(None, self.data.phon_max_size*14+1, self.data.phon_words+1), dtype=tf.float32)
+                tf.TensorSpec(shape=(None, self.data.title_max_size - 1, self.data.title_words + 1), dtype=tf.float32)
             )).repeat()
 
         best_hyperparameters = HyperParameters()
@@ -143,7 +144,7 @@ class PhonModel():
                 max_trials=100,
                 executions_per_trial=1,
                 directory='tuner',
-                project_name='sonnets',
+                project_name='versets',
                 num_initial_points=10
             )
             tuner.search(train_data,
@@ -157,11 +158,11 @@ class PhonModel():
 
         model = self.build_model(best_hyperparameters)
 
-        #if os.path.exists(MODEL_1_PATH):
-        #    model.load_weights(MODEL_1_PATH)
+        #if os.path.exists(MODEL_2_PATH):
+        #    model.load_weights(MODEL_2_PATH)
 
         save_options = tf.saved_model.SaveOptions()
-        checkpoint = ModelCheckpoint(MODEL_1_PATH,
+        checkpoint = ModelCheckpoint(MODEL_2_PATH,
                                      save_freq='epoch',
                                      monitor='val_accuracy',
                                      save_best_only=True,
