@@ -96,7 +96,8 @@ class PhonModel():
 
     def build_model_simple(self, hp):
         lstm_units = hp.Int("lstm_units", min_value=8, max_value=512, step=8, default=168)
-        embedding_dim = hp.Int("embedding_dim", min_value=8, max_value=512, step=8, default=184)
+        encoder_embedding_dim = hp.Int("encoder_embedding_dim", min_value=8, max_value=512, step=8, default=184)
+        decoder_embedding_dim = hp.Int("decoder_embedding_dim", min_value=8, max_value=512, step=8, default=184)
         learning_rate = hp.Float('learning_rate', min_value=1e-5, max_value=1e-2, sampling='log', default=0.001)
         #drop_out = hp.Float('drop_out', min_value=0.0, max_value=1.0, step=0.05, default=0.38)
         #regularizer = hp.Float('regularizer', min_value=1e-5, max_value=1e-2, sampling='log', default=0.0001)
@@ -104,7 +105,7 @@ class PhonModel():
 
         # Entrées
         encoder_input = Input(shape=(self.data.title_max_size,), dtype="int32", name="title_input")
-        encoder_embedding = layers.Embedding(self.data.title_words, embedding_dim)(encoder_input)
+        encoder_embedding = layers.Embedding(self.data.title_words, encoder_embedding_dim)(encoder_input)
         #encoder_embedding = layers.LayerNormalization()(encoder_embedding)
         #encoder_embedding = layers.Dropout(drop_out)(encoder_embedding)
         encoder_output, forward_h, forward_c, backward_h, backward_c = layers.Bidirectional(layers.LSTM(
@@ -126,7 +127,7 @@ class PhonModel():
         #encoder_output = layers.Concatenate(axis=-1)([encoder_output, encoder_attention_output])
 
         decoder_input = Input(shape=(self.data.phon_max_size*14+1,), dtype="int32", name="decoder_input")
-        decoder_embedding = layers.Embedding(self.data.phon_words, embedding_dim)(decoder_input)
+        decoder_embedding = layers.Embedding(self.data.phon_words, decoder_embedding_dim)(decoder_input)
         #decoder_embedding = layers.LayerNormalization()(decoder_embedding)
         #decoder_embedding = layers.Dropout(drop_out)(decoder_embedding)
         decoder_output, _, _ = layers.LSTM(
@@ -191,8 +192,9 @@ class PhonModel():
             )).repeat()
 
         best_hyperparameters = HyperParameters()
-        best_hyperparameters.Fixed('lstm_units', value=32)  # 168
-        best_hyperparameters.Fixed('embedding_dim', value=32)  # 184
+        best_hyperparameters.Fixed('lstm_units', value=320)  # 168
+        best_hyperparameters.Fixed('encoder_embedding_dim', value=160)  # 184
+        best_hyperparameters.Fixed('decoder_embedding_dim', value=160)  # 184
         best_hyperparameters.Fixed('learning_rate', value=0.0005)  # 0.001
         best_hyperparameters.Fixed('drop_out', value=0.38573)  # 0.38573
         best_hyperparameters.Fixed('regularizer', value=0.0001)  # 0.0001
@@ -231,7 +233,7 @@ class PhonModel():
                                      save_weights_only=False,
                                      # options=save_options,
                                      )
-        reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10, min_lr=0.00001)
+        reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.05, patience=10, min_lr=0.000001)
 
         phon_generator = PhonGenerator(model, data=self.data)
 

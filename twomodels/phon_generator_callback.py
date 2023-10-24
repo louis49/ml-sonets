@@ -47,5 +47,6 @@ class PhonGenerator(Callback):
             seed_text += next_word
         text = seed_text[1:-1]
         divided_strings = [text[i:i + 3] for i in range(0, len(text), 3)]
-        divided_strings_clean = [string.replace('.', '') for string in divided_strings]
+        reversed_divided_strings = [string[::-1] for string in divided_strings]
+        divided_strings_clean = [string.replace('.', '') for string in reversed_divided_strings]
         return self.data.convertir_rimes_en_lettres(divided_strings_clean) + " " + text.replace('.', ' ')
