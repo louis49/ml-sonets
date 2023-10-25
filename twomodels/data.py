@@ -614,7 +614,7 @@ class Data():
         # Model 2 - White Data
         # Sur la base de données factices on fait varier les derniers mots
         # On choisi la longeur de la rime
-        # On récupére autant de mots du dictionnaire en focntion de leur distribution
+        # On récupére autant de mots du dictionnaire en fonction de leur distribution
         # On construit une phrase qui se termine par le mot associé au phonème
         # Title seq + Phon seq => Verset
         print("Generating - Model 2 - White Data")
@@ -922,8 +922,10 @@ class Data():
                 input_phons = batch['phons']
                 target_text = batch['text']
 
+                input_phons_onehot = tf.keras.utils.to_categorical(input_phons, num_classes=self.phon_words+1)
+
                 decoder_input = target_text[:, :-1]
                 decoder_output = target_text[:, 1:]
 
                 decoder_output_onehot = tf.keras.utils.to_categorical(decoder_output, num_classes=self.text_words)
-                yield (input_title, input_phons, decoder_input), decoder_output_onehot
+                yield (input_title, input_phons_onehot, decoder_input), decoder_output_onehot

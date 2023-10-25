@@ -30,21 +30,28 @@ class VersetModel():
         self.data = data
 
     def build_model(self, hp):
+        model = self.model(hp)
+        learning_rate = hp.Float('learning_rate', min_value=1e-5, max_value=1e-2, sampling='log', default=0.001)
+        model.compile(optimizer=optimizers.legacy.Adam(learning_rate=learning_rate),
+                      loss='categorical_crossentropy',
+                      metrics=['accuracy'])
+        return model
+
+    def model(self, hp):
         lstm_units = hp.Int("lstm_units", min_value=8, max_value=128, step=8, default=168)
         encoder_title_embedding_dim = hp.Int("encoder_title_embedding_dim", min_value=8, max_value=128, step=8, default=184)
         encoder_phons_embedding_dim = hp.Int("encoder_phons_embedding_dim", min_value=8, max_value=128, step=8, default=184)
         decoder_embedding_dim = hp.Int("decoder_embedding_dim", min_value=8, max_value=128, step=8, default=184)
-        learning_rate = hp.Float('learning_rate', min_value=1e-5, max_value=1e-2, sampling='log', default=0.001)
-        #drop_out = hp.Float('drop_out', min_value=0.0, max_value=1.0, step=0.05, default=0.38)
-        #regularizer = hp.Float('regularizer', min_value=1e-5, max_value=1e-2, sampling='log', default=0.0001)
-        #num_heads = hp.Int("num_heads", min_value=1, max_value=16, step=1, default=12)
+        drop_out = hp.Float('drop_out', min_value=0.0, max_value=1.0, step=0.05, default=0.38)
+        regularizer = hp.Float('regularizer', min_value=1e-5, max_value=1e-2, sampling='log', default=0.0001)
+        num_heads = hp.Int("num_heads", min_value=1, max_value=16, step=1, default=12)
 
         # Entrées
         encoder_input_title = Input(shape=(self.data.title_max_size,), dtype="int32", name="title_input")
-        encoder_input_phons = Input(shape=(self.data.phon_max_size,), dtype="int32", name="phons_input")
+        encoder_input_phons = Input(shape=(self.data.phon_max_size, self.data.phon_words + 1 ), dtype="float32", name="phons_input")
 
         encoder_embedding_title = layers.Embedding(self.data.title_words, encoder_title_embedding_dim)(encoder_input_title)
-        encoder_embedding_phons = layers.Embedding(self.data.phon_words, encoder_phons_embedding_dim)(encoder_input_phons)
+        encoder_embedding_phons = encoder_input_phons #layers.Embedding(self.data.phon_words, encoder_phons_embedding_dim)(encoder_input_phons)
 
         #encoder_embedding_title = layers.LayerNormalization()(encoder_embedding_title)
         #encoder_embedding_title = layers.Dropout(drop_out)(encoder_embedding_title)
@@ -82,11 +89,13 @@ class VersetModel():
         combined_state_h = layers.Concatenate()([state_h_title, state_h_phons])
         combined_state_c = layers.Concatenate()([state_c_title, state_c_phons])
 
+        #combined_encoder_output = layers.Concatenate(axis=-1)([encoder_output_title, encoder_output_phons])
 
-        #encoder_attention = layers.MultiHeadAttention(num_heads=num_heads, key_dim=embedding_dim)
+        # key_dim multiple of num_heads ? hp value "ratio" ?
+        #encoder_attention = layers.MultiHeadAttention(num_heads=num_heads, key_dim=encoder_title_embedding_dim+encoder_phons_embedding_dim)
         #encoder_attention_output = encoder_attention(query=combined_encoder_output, key=combined_encoder_output, value=combined_encoder_output)
 
-        #encoder_output = layers.Concatenate(axis=-1)([encoder_output, encoder_attention_output])
+        #encoder_output = layers.Concatenate(axis=-1)([combined_encoder_output, encoder_attention_output])
 
         decoder_input = Input(shape=(self.data.text_max_size-1,), dtype="int32", name="decoder_input")
         decoder_embedding = layers.Embedding(self.data.text_words, decoder_embedding_dim)(decoder_input)
@@ -103,7 +112,8 @@ class VersetModel():
             #bias_regularizer=regularizers.l1_l2(regularizer)
         )(decoder_embedding, initial_state=[combined_state_h, combined_state_c])
 
-        #attention = layers.MultiHeadAttention(num_heads=num_heads, key_dim=embedding_dim)
+        # key_dim multiple of num_heads ? hp value "ratio" ?
+        #attention = layers.MultiHeadAttention(num_heads=num_heads, key_dim=decoder_embedding)
         #attention_output = attention(query=decoder_output, key=encoder_output, value=encoder_output)
         #decoder_output = layers.Concatenate(axis=-1)([decoder_output, attention_output])
 
@@ -112,11 +122,6 @@ class VersetModel():
 
         # Création du modèle
         model = Model(inputs=[encoder_input_title, encoder_input_phons, decoder_input], outputs=decoder_outputs)
-
-        # Compilation du modèle
-        model.compile(optimizer=optimizers.legacy.Adam(learning_rate=learning_rate),
-                      loss='categorical_crossentropy',
-                      metrics=['accuracy'])
 
         return model
 
@@ -144,7 +149,7 @@ class VersetModel():
             generator_wrapper_train,
             output_signature=(
                 (tf.TensorSpec(shape=(None, self.data.title_max_size), dtype=tf.int32),
-                 tf.TensorSpec(shape=(None, self.data.phon_max_size), dtype=tf.int32),
+                 tf.TensorSpec(shape=(None, self.data.phon_max_size, self.data.phon_words + 1), dtype=tf.float32),
                  tf.TensorSpec(shape=(None, self.data.text_max_size - 1), dtype=tf.int32),
                  ),
                 tf.TensorSpec(shape=(None, self.data.text_max_size - 1, self.data.text_words), dtype=tf.float32)
@@ -154,21 +159,21 @@ class VersetModel():
             generator_wrapper_test,
             output_signature=(
                 (tf.TensorSpec(shape=(None, self.data.title_max_size), dtype=tf.int32),
-                 tf.TensorSpec(shape=(None, self.data.phon_max_size), dtype=tf.int32),
+                 tf.TensorSpec(shape=(None, self.data.phon_max_size, self.data.phon_words + 1), dtype=tf.float32),
                  tf.TensorSpec(shape=(None, self.data.text_max_size - 1), dtype=tf.int32),
                  ),
                 tf.TensorSpec(shape=(None, self.data.text_max_size - 1, self.data.text_words), dtype=tf.float32)
             )).repeat()
 
         best_hyperparameters = HyperParameters()
-        best_hyperparameters.Fixed('lstm_units', value=10)
-        best_hyperparameters.Fixed('encoder_title_embedding_dim', value=10)
-        best_hyperparameters.Fixed('encoder_phons_embedding_dim', value=10)
-        best_hyperparameters.Fixed('decoder_embedding_dim', value=10)
+        best_hyperparameters.Fixed('lstm_units', value=128)
+        best_hyperparameters.Fixed('encoder_title_embedding_dim', value=128)
+        best_hyperparameters.Fixed('encoder_phons_embedding_dim', value=128)
+        best_hyperparameters.Fixed('decoder_embedding_dim', value=128)
         best_hyperparameters.Fixed('learning_rate', value=0.001)
-        #best_hyperparameters.Fixed('drop_out', value=0.38573)
-        #best_hyperparameters.Fixed('regularizer', value=0.0001)
-        #best_hyperparameters.Fixed('num_heads', value=1)
+        best_hyperparameters.Fixed('drop_out', value=0.38573)
+        best_hyperparameters.Fixed('regularizer', value=0.0001)
+        best_hyperparameters.Fixed('num_heads', value=5)
 
         if use_tuner == True:
             tuner = BayesianOptimization(
@@ -205,11 +210,11 @@ class VersetModel():
                                      )
         reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.05, patience=10, min_lr=0.000001)
 
-        #verset_generator = VersetGenerator(model, data=self.data)
+        verset_generator = VersetGenerator(model, data=self.data)
 
         model.fit(train_data,
                   validation_data=test_data,
                   epochs=200,
                   steps_per_epoch = epoch_size_train//BATCH_SIZE,
                   validation_steps = epoch_size_test//BATCH_SIZE,
-                  callbacks=[epoch_callback, checkpoint, reduce_lr])
+                  callbacks=[epoch_callback, checkpoint, reduce_lr, verset_generator])
