@@ -69,7 +69,7 @@ class PhonModel():
         encoder_states = [state_h, state_c]
 
         if attention_encoder:
-            encoder_attention = layers.MultiHeadAttention(num_heads=num_heads_encoder, key_dim=encoder_embedding_dim//num_heads_encoder)
+            encoder_attention = layers.MultiHeadAttention(num_heads=num_heads_encoder, key_dim=max(encoder_embedding_dim//num_heads_encoder,1))
             encoder_attention_output = encoder_attention(query=encoder_output, key=encoder_output, value=encoder_output)
             encoder_output = layers.Concatenate(axis=-1)([encoder_output, encoder_attention_output])
             encoder_output = layers.LayerNormalization()(encoder_output)
@@ -90,7 +90,7 @@ class PhonModel():
         )(decoder_embedding, initial_state=encoder_states)
 
         if attention_decoder:
-            attention = layers.MultiHeadAttention(num_heads=num_heads_decoder, key_dim=int(decoder_embedding_dim//num_heads_decoder))
+            attention = layers.MultiHeadAttention(num_heads=num_heads_decoder, key_dim=max(decoder_embedding_dim//num_heads_decoder,1))
             attention_output = attention(query=decoder_output, key=encoder_output, value=encoder_output)
             decoder_output = layers.Concatenate(axis=-1)([decoder_output, attention_output])
             decoder_output = layers.LayerNormalization()(decoder_output)

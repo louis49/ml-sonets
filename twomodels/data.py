@@ -647,8 +647,6 @@ class Data():
         count_train = self.count_tfrecord_samples(MODEL_1_SEQ_WHITE_PATH)
         count_test = self.count_tfrecord_samples(MODEL_1_SEQ_WHITE_TEST_PATH)
         print("\rGenerated - Model 1 - {} White Data - {} White Test Data".format(count_train, count_test))
-
-        '''
         
         # On génère le premier Dataset du modèle 2
         # Model 2 - Black Data
@@ -818,7 +816,7 @@ class Data():
         count_train = self.count_tfrecord_samples(MODEL_3_SEQ_BLACK_PATH)
         count_test = self.count_tfrecord_samples(MODEL_3_SEQ_BLACK_TEST_PATH)
         print("\rGenerated - Model 3 - {} Black Data - {} Black Test Data".format(count_train, count_test))
-        '''
+
         print("End analyze")
 
     def save(self):

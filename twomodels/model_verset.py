@@ -32,7 +32,47 @@ class VersetModel():
         self.data = data
 
     def build_model(self, hp):
-        model = self.model(hp)
+        model = self.model_simple(hp)
+
+        return model
+
+    def model_simple(self,hp):
+        lstm_units = hp.Int("verset_lstm_units", min_value=128, max_value=512, step=8, default=512)
+        embedding_dim_title = hp.Int("verset_encoder_title_embedding_dim", min_value=128, max_value=512, step=8, default=512)
+        embedding_dim_decoder = hp.Int("verset_decoder_embedding_dim", min_value=128, max_value=512, step=8, default=512)
+        learning_rate = hp.Float('learning_rate', min_value=1e-5, max_value=1e-2, sampling='log', default=0.001)
+
+        # Entrées
+        encoder_input_title = Input(shape=(self.data.title_max_size,), dtype="int32", name="title_input")
+        encoder_input_phons = Input(shape=(self.data.phon_max_size, self.data.phon_words + 1), dtype="float32", name="phons_input")
+        encoder_input_line = Input(shape=(1,), dtype="int32", name="line_input")
+
+        encoder_embedding_title = layers.Embedding(self.data.title_words, embedding_dim_title)(encoder_input_title)
+
+        encoder_output_title, forward_h_title, forward_c_title, backward_h_title, backward_c_title = layers.Bidirectional(layers.LSTM(lstm_units, return_state=True))(encoder_embedding_title)
+        state_h_title = layers.Concatenate()([forward_h_title, backward_h_title])
+        state_c_title = layers.Concatenate()([forward_c_title, backward_c_title])
+
+        encoder_output_phons, forward_h_phons, forward_c_phons, backward_h_phons, backward_c_phons = layers.Bidirectional(layers.LSTM(lstm_units, return_state=True))(encoder_input_phons)
+        state_h_phons = layers.Concatenate()([forward_h_phons, backward_h_phons])
+        state_c_phons = layers.Concatenate()([forward_c_phons, backward_c_phons])
+
+        line_processing = Dense(units=lstm_units, activation="relu")(encoder_input_line)
+
+        combined_state_h = layers.Concatenate()([state_h_title, state_h_phons, line_processing])
+        combined_state_c = layers.Concatenate()([state_c_title, state_c_phons, line_processing])
+
+        decoder_input = Input(shape=(self.data.text_max_size - 1,), dtype="int32", name="decoder_input")
+        decoder_embedding = layers.Embedding(self.data.text_words + 1, embedding_dim_decoder)(decoder_input)
+
+        decoder_output = layers.LSTM(5 * lstm_units, return_sequences=True, return_state=False)(decoder_embedding, initial_state=[combined_state_h, combined_state_c])
+
+        decoder_dense = layers.TimeDistributed(layers.Dense(self.data.text_words + 1, activation='softmax'))
+        decoder_outputs = decoder_dense(decoder_output)
+
+        # Création du modèle
+        model = Model(inputs=[encoder_input_title, encoder_input_phons, encoder_input_line, decoder_input], outputs=decoder_outputs, name="VersetModel")
+        model.compile(optimizer=optimizers.legacy.Adam(learning_rate=learning_rate), loss='categorical_crossentropy', metrics=['accuracy'])
 
         return model
 
@@ -162,8 +202,6 @@ class VersetModel():
         epoch_size_train = self.data.count_tfrecord_samples(MODEL_2_SEQ_BLACK_PATH)
         epoch_size_test = min(self.data.count_tfrecord_samples(MODEL_2_SEQ_BLACK_TEST_PATH), BATCH_SIZE_TEST)
 
-        #k = self.data.generate_data_verset(BATCH_SIZE_TRAIN, epoch_size_train // BATCH_SIZE_TRAIN, 0, True)
-
 
         train_data = Dataset.from_generator(
             generator_wrapper_train,
@@ -188,10 +226,10 @@ class VersetModel():
             )).repeat()
 
         best_hyperparameters = HyperParameters()
-        best_hyperparameters.Fixed('verset_lstm_units', value=512)
+        best_hyperparameters.Fixed('verset_lstm_units', value=128)
         best_hyperparameters.Fixed('verset_encoder_title_embedding_dim', value=128)
-        best_hyperparameters.Fixed('verset_decoder_embedding_dim', value=512)
-        best_hyperparameters.Fixed('verset_attention', value=False)
+        best_hyperparameters.Fixed('verset_decoder_embedding_dim', value=128)
+        #best_hyperparameters.Fixed('verset_attention', value=False)
 
         best_hyperparameters.Fixed('learning_rate', value=0.001)
         #best_hyperparameters.Fixed('drop_out', value=0.38573)
@@ -231,13 +269,13 @@ class VersetModel():
                                      save_weights_only=False,
                                      # options=save_options,
                                      )
-        reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.05, patience=10, min_lr=0.000001)
+        reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.9, patience=10, min_lr=0.000001)
 
         verset_generator = VersetGenerator(model, data=self.data)
 
         model.fit(train_data,
                   validation_data=test_data,
-                  epochs=200,
+                  epochs=100,
                   steps_per_epoch = epoch_size_train//BATCH_SIZE_TRAIN,
                   validation_steps = epoch_size_test//BATCH_SIZE_TEST,
                   callbacks=[epoch_callback, checkpoint, reduce_lr, verset_generator])

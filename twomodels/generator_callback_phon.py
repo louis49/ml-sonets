@@ -24,6 +24,7 @@ class PhonGenerator(Callback):
             generated_text_4 = self.generate_text(text_4)
 
             print("\nSample generation at epoch {}: \n{} \n{} \n{} \n{}".format(
+                epoch,
                 text_1 + ' ' + generated_text_1,
                 text_2 + ' ' + generated_text_2,
                 text_3 + ' ' + generated_text_3,
