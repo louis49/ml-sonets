@@ -122,9 +122,6 @@ class Data():
         self.text_max_size = 0
         self.phon_max_size = 0
 
-
-
-
         print("Init ok")
 
     def convertir_rimes_en_lettres(self, sequence_rimes):
@@ -214,6 +211,7 @@ class Data():
                     save_versets_to_tfrecord(seq, writer_train)
                 else:
                     save_versets_to_tfrecord(seq, writer_test)
+
         def save_versets_to_tfrecord(sequence, writer):
             feature = {
                 'title': tf.train.Feature(int64_list=tf.train.Int64List(value=list(sequence['title']))),
@@ -230,6 +228,7 @@ class Data():
                     save_sonnets_to_writer(seq, writer_train)
                 else:
                     save_sonnets_to_writer(seq, writer_test)
+
         def save_sonnets_to_writer(sequence, writer):
             feature = {
                 'title': tf.train.Feature(int64_list=tf.train.Int64List(value=list(sequence['title'].tolist()))),
@@ -276,7 +275,7 @@ class Data():
                 texts_tokens = self.text_tokenizer.texts_to_sequences([data['text']])[0]
 
                 if limit and len(texts_tokens) >= 3:
-                    text_subsequences = generate_subsequences_tokenized(texts_tokens, start=len(texts_tokens)-3)
+                    text_subsequences = generate_subsequences_tokenized(texts_tokens, start=len(texts_tokens) - 3)
                 else:
                     text_subsequences = generate_subsequences_tokenized(texts_tokens)
 
@@ -304,17 +303,19 @@ class Data():
                 texts_tokens = self.text_tokenizer.texts_to_sequences(data['texts'])
 
                 phons_subsequences = generate_subsequences_tokenized(phons_tokens)
-                texts = list(np.array([pad_sequences([text_tokens], maxlen=self.text_max_size, padding='post')[0] for text_tokens in texts_tokens]).flatten())
+                texts = list(np.array(
+                    [pad_sequences([text_tokens], maxlen=self.text_max_size, padding='post')[0] for text_tokens in
+                     texts_tokens]).flatten())
                 texts_subsequences = generate_subsequences_tokenized(texts)
 
-                for i, text_subsequence in enumerate(texts_subsequences):
-                    j = i//self.text_max_size
-                    phon_sub = phons_subsequences[j * 3+1:(j + 1) * 3 + 1]
+                for k, text_subsequence in enumerate(texts_subsequences):
+                    j = k // self.text_max_size
+                    phon_sub = phons_subsequences[j * 3 + 1:(j + 1) * 3 + 1]
                     for phon in phon_sub:
                         sequences.append({
                             'title': pad_sequences([title_tokens], maxlen=self.title_max_size, padding='post')[0],
                             'phons': pad_sequences([phon], maxlen=self.phon_max_size * 14 + 2, padding='post')[0],
-                            'texts': pad_sequences([text_subsequence],  maxlen=self.text_max_size * 14, padding='post')[0]
+                            'texts': pad_sequences([text_subsequence], maxlen=self.text_max_size * 14, padding='post')[0]
                         })
             return sequences
 
@@ -371,8 +372,6 @@ class Data():
 
             line = convert_to_line_index(int(strophe_number), int(line_number))
 
-            # if '!\'' in text:
-            #    print("")
             sonnets_id[sonnet_id]['lines'][line]['text'] = "<start> " + remove_spaces(
                 add_spaces(clean(text))) + " <end>"
             sonnets_id[sonnet_id]['lines'][line]['phon'].append(phon)
@@ -513,7 +512,6 @@ class Data():
         self.phon_max_size = max([len(phons) for phons in list(set_phons)])
         self.phon_words = len(words_phon)
 
-
         # On génère le premier Dataset du modèle 1
         # Model 1 - Black Data
         # Sur la base des données réelles
@@ -536,12 +534,12 @@ class Data():
                     sonnet_seq3['phons'] = [[] for _ in range(14)]
                     sonnet_seq2_array = []
                     sonnet_seq3_array = []
-                    for i, line in enumerate(sonnet['lines']):
-                        sonnet_seq2_array.append(sonnet['lines'][i]['phon'][1])
-                        sonnet_seq3_array.append(sonnet['lines'][i]['phon'][2])
-                        sonnet_seq1['phons'][i] = sonnet['lines'][i]['phon'][0]
-                        sonnet_seq2['phons'][i] = sonnet['lines'][i]['phon'][1]
-                        sonnet_seq3['phons'][i] = sonnet['lines'][i]['phon'][2]
+                    for j, line in enumerate(sonnet['lines']):
+                        sonnet_seq2_array.append(sonnet['lines'][j]['phon'][1])
+                        sonnet_seq3_array.append(sonnet['lines'][j]['phon'][2])
+                        sonnet_seq1['phons'][j] = sonnet['lines'][j]['phon'][0]
+                        sonnet_seq2['phons'][j] = sonnet['lines'][j]['phon'][1]
+                        sonnet_seq3['phons'][j] = sonnet['lines'][j]['phon'][2]
 
                     seq1 = sequence_and_pad_model1([sonnet_seq1])
                     save_phons(seq1, writer_train, writer_test)
@@ -577,8 +575,9 @@ class Data():
                     print(f"\rGenerating progress: {progress_percent:.2f}%", end="")
                     selected_theme = random.choices(list(themes.keys()), weights=themes.values(), k=1)[0]
                     selected_schema = \
-                    random.choices(list(themes_schema[selected_theme].keys()), weights=themes_schema[selected_theme].values(),
-                                   k=1)[0]
+                        random.choices(list(themes_schema[selected_theme].keys()),
+                                       weights=themes_schema[selected_theme].values(),
+                                       k=1)[0]
                     taille_rimes = random.randint(1, 3)
                     all_rimes = {phon: themes_phons[selected_theme][phon] for phon in themes_phons[selected_theme] if
                                  len(phon) == taille_rimes}
@@ -598,13 +597,10 @@ class Data():
                     }
                     seq = sequence_and_pad_model1([sonnet_seq])
                     save_phons(seq, writer_train, writer_test)
-                    #if len(model_1_data_grey) > 5000:
-                    #    break
         print("\rCounting data...")
         count_train = self.count_tfrecord_samples(MODEL_1_SEQ_GREY_PATH)
         count_test = self.count_tfrecord_samples(MODEL_1_SEQ_GREY_TEST_PATH)
         print("\rGenerated - Model 1 - {} Grey Data - {} Grey Test Data".format(count_train, count_test))
-        
 
         # Model 1 - White Data
         # Génération de données sur la base des schémas et des rimes
@@ -647,7 +643,7 @@ class Data():
         count_train = self.count_tfrecord_samples(MODEL_1_SEQ_WHITE_PATH)
         count_test = self.count_tfrecord_samples(MODEL_1_SEQ_WHITE_TEST_PATH)
         print("\rGenerated - Model 1 - {} White Data - {} White Test Data".format(count_train, count_test))
-        
+
         # On génère le premier Dataset du modèle 2
         # Model 2 - Black Data
         # Sur la base des données réelles
@@ -666,14 +662,14 @@ class Data():
                                 'title': title,
                                 'phons': phon,
                                 'text': line['text'],
-                                'line': j+1
+                                'line': j + 1
                             }
                             seq = sequence_and_pad_model2([sonnet_seq])
                             save_versets(seq, writer_train, writer_test)
         print("\rCounting data...")
         count_train = self.count_tfrecord_samples(MODEL_2_SEQ_BLACK_PATH)
         count_test = self.count_tfrecord_samples(MODEL_2_SEQ_BLACK_TEST_PATH)
-        print("\rGenerated - Model 2 - {} Black Data - {} Black Test Data".format(count_train,count_test))
+        print("\rGenerated - Model 2 - {} Black Data - {} Black Test Data".format(count_train, count_test))
 
         # Model 2 - Grey Data
         # Sur la base des données réelles mais on fait varier les derniers mots sur la bases des autres mots pour le même thème et le même phon
@@ -689,9 +685,10 @@ class Data():
                     title = sonnet['title']
                     theme = sonnet['theme']
                     for i, line in enumerate(sonnet['lines']):
-                        for phon in line['phon']: # Il y a trois phons : un pour chaque type de rime (pauvre, riche, etc...)
+                        for phon in line[
+                            'phon']:  # Il y a trois phons : un pour chaque type de rime (pauvre, riche, etc...)
                             words_dictionnary_phon = list(themes_phons_words[theme][phon])
-                            num_samples = min(len(words_dictionnary_phon), 2)
+                            num_samples = len(words_dictionnary_phon)  # min(len(words_dictionnary_phon), 2)
                             selected_words = random.sample(words_dictionnary_phon, num_samples)
                             for word in selected_words:
                                 new_line_array = line['text'].split(' ')[1:-1]
@@ -726,13 +723,13 @@ class Data():
                                     'text': '<start> ' + new_line + last_car + ' <end>',
                                     'line': i + 1
                                 }
-                                seq = sequence_and_pad_model2([sonnet_seq], limit=True) # On limite la génération à la fin de la séquence
+                                seq = sequence_and_pad_model2([sonnet_seq],
+                                                              limit=True)  # On limite la génération à la fin de la séquence
                                 save_versets(seq, writer_train, writer_test)
         print("\rCounting data...")
         count_train = self.count_tfrecord_samples(MODEL_2_SEQ_GREY_PATH)
         count_test = self.count_tfrecord_samples(MODEL_2_SEQ_GREY_TEST_PATH)
         print("\rGenerated - Model 2 - {} Grey Data - {} Grey Test Data".format(count_train, count_test))
-
 
         # Model 2 - White Data
         # Sur la base de données factices on fait varier les derniers mots
@@ -752,10 +749,11 @@ class Data():
                     progress_percent = (i / len(phons_words)) * 100
                     print(f"\rGenerating progress: {progress_percent:.2f}%", end="")
                     for word in phons_words[phon]:
-                        for _ in range(3):
-                            taille_verset = random.randint(0, self.text_max_size-2)
+                        for _ in range(5):
+                            taille_verset = random.randint(0, self.text_max_size - 2)
 
-                            selected_words = random.choices(list(dictionary.keys()), weights=dictionary.values(), k=taille_verset)
+                            selected_words = random.choices(list(dictionary.keys()), weights=dictionary.values(),
+                                                            k=taille_verset)
                             line = ' '.join(selected_words) + ' ' + word
 
                             j = random.randint(0, 13)
@@ -772,7 +770,7 @@ class Data():
         count_train = self.count_tfrecord_samples(MODEL_2_SEQ_WHITE_PATH)
         count_test = self.count_tfrecord_samples(MODEL_2_SEQ_WHITE_TEST_PATH)
         print("\rGenerated - Model 2 - {} White Data - {} Grey Test Data".format(count_train, count_test))
-        
+
         # On génère le Dataset du modèle 3
         # Model 3 - Black Data
         # Sur la base des données réelles
@@ -900,8 +898,8 @@ class Data():
     def load_sonnets_from_tfrecord(self, filename, batch_size, title_max_size, phon_max_size, text_max_size):
         feature = {
             'title': tf.io.FixedLenFeature([title_max_size], tf.int64),
-            'phons': tf.io.FixedLenFeature([phon_max_size*14+2], tf.int64),
-            'texts': tf.io.FixedLenFeature([text_max_size*14+2], tf.int64),
+            'phons': tf.io.FixedLenFeature([phon_max_size * 14 + 2], tf.int64),
+            'texts': tf.io.FixedLenFeature([text_max_size * 14 + 2], tf.int64),
         }
 
         def _parse_function(example_proto):
@@ -920,91 +918,6 @@ class Data():
 
     def generate_data_phon(self, batch_size, epoch_size, epoch, train):
         # print("\nStart generate_data_phon epoch :{}".format(epoch))
-
-        data_black = 0.0
-        data_grey = 0.0
-        data_white = 1.0
-
-        initial_stable_epochs = 10
-        phase_limit = 10
-        change_per_epoch = 1.0 / phase_limit
-
-        if epoch <= initial_stable_epochs:
-            # Pas de changement, rester à 100% white
-            pass
-        else:
-            # Calcul de l'epoch ajustée après les epochs initiales stables
-            adjusted_epoch = epoch - initial_stable_epochs
-
-            if adjusted_epoch < phase_limit:
-                # Première phase : diminuer white, augmenter grey
-                data_white -= adjusted_epoch * change_per_epoch
-                data_grey += adjusted_epoch * change_per_epoch
-            elif adjusted_epoch < (2 * phase_limit):
-                # Deuxième phase : white est à 0, diminuer grey, augmenter black
-                data_white = 0.0
-                remaining_epochs = adjusted_epoch - phase_limit
-                data_grey = 1.0 - remaining_epochs * change_per_epoch
-                data_black = remaining_epochs * change_per_epoch
-            else:
-                # Troisième phase : seulement des données black
-                data_white = 0.0
-                data_grey = 0.0
-                data_black = 1.0
-
-        #data_black = 1.0
-        #data_grey = 0.0
-        #data_white = 0.0
-
-        if train == True:
-            print("\nUsing {}% White, {}% Grey, {}% Black".format(data_white * 100, data_grey * 100, data_black * 100))
-
-        batch_white = int(data_white * batch_size)
-        batch_grey = int(data_grey * batch_size)
-        batch_black = batch_size - (batch_white + batch_grey)
-
-        for i in range(epoch_size):
-            # print("Start batch {} {}".format(i+1, epoch_size))
-            if train == True:
-                white_data = self.load_rimes_from_tfrecord(MODEL_1_SEQ_WHITE_PATH, batch_white, self.title_max_size,
-                                                           self.phon_max_size)
-                grey_data = self.load_rimes_from_tfrecord(MODEL_1_SEQ_GREY_PATH, batch_grey, self.title_max_size,
-                                                          self.phon_max_size)
-                black_data = self.load_rimes_from_tfrecord(MODEL_1_SEQ_BLACK_PATH, batch_black, self.title_max_size,
-                                                           self.phon_max_size)
-                merged_data = white_data.concatenate(grey_data).concatenate(black_data)
-            else:
-                #white_data = self.load_rimes_from_tfrecord(MODEL_1_SEQ_WHITE_TEST_PATH, batch_white, self.title_max_size, self.phon_max_size)
-                #grey_data = self.load_rimes_from_tfrecord(MODEL_1_SEQ_GREY_TEST_PATH, batch_grey, self.title_max_size, self.phon_max_size)
-                black_data = self.load_rimes_from_tfrecord(MODEL_1_SEQ_BLACK_TEST_PATH, batch_size,
-                                                           self.title_max_size, self.phon_max_size)
-
-                merged_data = black_data
-
-
-            # Vérifier si le dataset est vide
-            # if merged_data.cardinality().numpy() == 0:
-            #    print("Le dataset fusionné est vide. Veuillez vérifier les datasets sources.")
-            #    continue  # Passez à la prochaine itération si le dataset est vide
-
-            for batch in merged_data.batch(batch_size):
-                # print("Start generate_data batch")
-                input_title = batch['title']
-                target_phon = batch['phons']
-
-                # input_title = tf.convert_to_tensor(input_title, dtype=tf.int64)
-                # target_phon = tf.convert_to_tensor(target_phon, dtype=tf.int64)
-
-                decoder_input = target_phon[:, :-1]
-                decoder_output = target_phon[:, 1:]
-
-                decoder_output_onehot = tf.keras.utils.to_categorical(decoder_output, num_classes=self.phon_words + 1)
-                # print("End generate_data batch")
-                yield (input_title, decoder_input), decoder_output_onehot
-        #print("\nEnd generate_data")
-
-    def generate_data_verset(self, batch_size, epoch_size, epoch, train):
-        # print("\nStart generate_data_verset epoch :{}".format(epoch))
 
         data_black = 0.0
         data_grey = 0.0
@@ -1037,7 +950,11 @@ class Data():
                 data_grey = 0.0
                 data_black = 1.0
 
-        if train == True:
+        data_black = 1.0
+        data_grey = 0.0
+        data_white = 0.0
+
+        if train:
             print("\nUsing {}% White, {}% Grey, {}% Black".format(data_white * 100, data_grey * 100, data_black * 100))
 
         batch_white = int(data_white * batch_size)
@@ -1046,20 +963,106 @@ class Data():
 
         for i in range(epoch_size):
             # print("Start batch {} {}".format(i+1, epoch_size))
-            if train == True:
-                white_data = self.load_versets_from_tfrecord(MODEL_2_SEQ_WHITE_PATH, batch_white, self.title_max_size,
-                                                           self.phon_max_size, self.text_max_size)
-                grey_data = self.load_versets_from_tfrecord(MODEL_2_SEQ_GREY_PATH, batch_grey, self.title_max_size,
-                                                          self.phon_max_size, self.text_max_size)
-                black_data = self.load_versets_from_tfrecord(MODEL_2_SEQ_BLACK_PATH, batch_black, self.title_max_size,
-                                                           self.phon_max_size, self.text_max_size)
+            if train:
+                white_data = self.load_rimes_from_tfrecord(MODEL_1_SEQ_WHITE_PATH, batch_white, self.title_max_size,
+                                                           self.phon_max_size)
+                grey_data = self.load_rimes_from_tfrecord(MODEL_1_SEQ_GREY_PATH, batch_grey, self.title_max_size,
+                                                          self.phon_max_size)
+                black_data = self.load_rimes_from_tfrecord(MODEL_1_SEQ_BLACK_PATH, batch_black, self.title_max_size,
+                                                           self.phon_max_size)
                 merged_data = white_data.concatenate(grey_data).concatenate(black_data)
             else:
-                #white_data = self.load_versets_from_tfrecord(MODEL_2_SEQ_WHITE_TEST_PATH, batch_white, self.title_max_size, self.phon_max_size, self.text_max_size)
-                #grey_data = self.load_versets_from_tfrecord(MODEL_2_SEQ_GREY_TEST_PATH, batch_grey, self.title_max_size, self.phon_max_size, self.text_max_size)
-                black_data = self.load_versets_from_tfrecord(MODEL_2_SEQ_BLACK_TEST_PATH, batch_size, self.title_max_size, self.phon_max_size, self.text_max_size)
-                merged_data = black_data
+                white_data = self.load_rimes_from_tfrecord(MODEL_1_SEQ_WHITE_TEST_PATH, batch_white,
+                                                           self.title_max_size, self.phon_max_size)
+                grey_data = self.load_rimes_from_tfrecord(MODEL_1_SEQ_GREY_TEST_PATH, batch_grey, self.title_max_size,
+                                                          self.phon_max_size)
+                black_data = self.load_rimes_from_tfrecord(MODEL_1_SEQ_BLACK_TEST_PATH, batch_black,
+                                                           self.title_max_size, self.phon_max_size)
+                merged_data = white_data.concatenate(grey_data).concatenate(black_data)
 
+            # Vérifier si le dataset est vide
+            # if merged_data.cardinality().numpy() == 0:
+            #    print("Le dataset fusionné est vide. Veuillez vérifier les datasets sources.")
+            #    continue  # Passez à la prochaine itération si le dataset est vide
+
+            for batch in merged_data.batch(batch_size):
+                # print("Start generate_data batch")
+                input_title = batch['title']
+                target_phon = batch['phons']
+
+                decoder_input = target_phon[:, :-1]
+                decoder_output = target_phon[:, 1:]
+
+                decoder_output_onehot = tf.keras.utils.to_categorical(decoder_output, num_classes=self.phon_words + 1)
+                yield (input_title, decoder_input), decoder_output_onehot
+
+    def generate_data_verset(self, batch_size, epoch_size, epoch, train, tuner):
+        # print("\nStart generate_data_verset epoch :{}".format(epoch))
+
+        data_black = 0.0
+        data_grey = 0.0
+        data_white = 1.0
+
+        initial_stable_epochs = 100
+        phase_limit = 100
+        change_per_epoch = 1.0 / phase_limit
+
+        if epoch < initial_stable_epochs:
+            # Pas de changement, rester à 100% white
+            pass
+        else:
+            # Calcul de l'epoch ajustée après les epochs initiales stables
+            adjusted_epoch = epoch - initial_stable_epochs
+
+            if adjusted_epoch < phase_limit:
+                # Première phase : diminuer white, augmenter grey
+                data_white -= adjusted_epoch * change_per_epoch
+                data_grey += adjusted_epoch * change_per_epoch
+            elif adjusted_epoch < (2 * phase_limit):
+                # Deuxième phase : white est à 0, diminuer grey, augmenter black
+                data_white = 0.0
+                remaining_epochs = adjusted_epoch - phase_limit
+                data_grey = 1.0 - remaining_epochs * change_per_epoch
+                data_black = remaining_epochs * change_per_epoch
+            else:
+                # Troisième phase : seulement des données black
+                data_white = 0.0
+                data_grey = 0.0
+                data_black = 1.0
+
+        if tuner:
+            data_black = 1.0
+            data_grey = 0.0
+            data_white = 0.0
+
+        if train:
+            print("\nUsing {}% White, {}% Grey, {}% Black".format(data_white * 100, data_grey * 100, data_black * 100))
+
+        batch_white = int(data_white * batch_size)
+        batch_grey = int(data_grey * batch_size)
+        batch_black = batch_size - (batch_white + batch_grey)
+
+        for i in range(epoch_size):
+            # print("Start batch {} {}".format(i+1, epoch_size))
+            if train:
+                white_data = self.load_versets_from_tfrecord(MODEL_2_SEQ_WHITE_PATH, batch_white, self.title_max_size,
+                                                             self.phon_max_size, self.text_max_size)
+                grey_data = self.load_versets_from_tfrecord(MODEL_2_SEQ_GREY_PATH, batch_grey, self.title_max_size,
+                                                            self.phon_max_size, self.text_max_size)
+                black_data = self.load_versets_from_tfrecord(MODEL_2_SEQ_BLACK_PATH, batch_black, self.title_max_size,
+                                                             self.phon_max_size, self.text_max_size)
+                merged_data = white_data.concatenate(grey_data).concatenate(black_data)
+            else:
+                white_data = self.load_versets_from_tfrecord(MODEL_2_SEQ_WHITE_TEST_PATH, batch_white,
+                                                             self.title_max_size, self.phon_max_size,
+                                                             self.text_max_size)
+                grey_data = self.load_versets_from_tfrecord(MODEL_2_SEQ_GREY_TEST_PATH, batch_grey, self.title_max_size,
+                                                            self.phon_max_size, self.text_max_size)
+                black_data = self.load_versets_from_tfrecord(MODEL_2_SEQ_BLACK_TEST_PATH, batch_black,
+                                                             self.title_max_size, self.phon_max_size,
+                                                             self.text_max_size)
+                merged_data = white_data.concatenate(grey_data).concatenate(black_data)
+                # merged_data = black_data
 
             for batch in merged_data.batch(batch_size):
                 # print("Start generate_data batch")
@@ -1068,12 +1071,12 @@ class Data():
                 input_line = batch['line']
                 target_text = batch['text']
 
-                input_phons_onehot = tf.keras.utils.to_categorical(input_phons, num_classes=self.phon_words+1)
+                input_phons_onehot = tf.keras.utils.to_categorical(input_phons, num_classes=self.phon_words + 1)
 
                 decoder_input = target_text[:, :-1]
                 decoder_output = target_text[:, 1:]
 
-                decoder_output_onehot = tf.keras.utils.to_categorical(decoder_output, num_classes=self.text_words+1)
+                decoder_output_onehot = tf.keras.utils.to_categorical(decoder_output, num_classes=self.text_words + 1)
                 yield (input_title, input_phons_onehot, input_line, decoder_input), decoder_output_onehot
 
     def generate_data_sonnet(self, batch_size, epoch_size, epoch, train):
@@ -1082,13 +1085,13 @@ class Data():
 
         for i in range(epoch_size):
             # print("Start batch {} {}".format(i+1, epoch_size))
-            if train == True:
+            if train:
                 black_data = self.load_sonnets_from_tfrecord(MODEL_3_SEQ_BLACK_PATH, batch_black, self.title_max_size,
-                                                           self.phon_max_size, self.text_max_size)
+                                                             self.phon_max_size, self.text_max_size)
             else:
                 black_data = self.load_sonnets_from_tfrecord(MODEL_3_SEQ_BLACK_TEST_PATH, batch_black,
-                                                           self.title_max_size, self.phon_max_size, self.text_max_size)
-
+                                                             self.title_max_size, self.phon_max_size,
+                                                             self.text_max_size)
 
             for batch in black_data.batch(batch_size):
                 # print("Start generate_data batch")
@@ -1102,15 +1105,12 @@ class Data():
                 input_text_split = tf.split(target_text, num_or_size_splits=14, axis=1)
                 input_texts = []
                 output_texts = []
-                for i in range(14):
-                    input_texts.append(input_text_split[i][:, :-1])
-                    output_texts.append(input_text_split[i][:, 1:])
+                for j in range(14):
+                    input_texts.append(input_text_split[j][:, :-1])
+                    output_texts.append(input_text_split[j][:, 1:])
 
                 output_text = tf.concat(output_texts, axis=1)
                 decoder_input_text = tf.concat(input_texts, axis=1)
-                #decoder_input_text = target_text[:, :-1]
-                #output_text = target_text[:, 1:]
 
-                output_text_onehot = tf.keras.utils.to_categorical(output_text, num_classes=self.text_words+1)
-                #print((input_title.shape, input_phons_onehot.shape, decoder_input_text.shape), (output_phons_onehot.shape, output_text_onehot.shape))
+                output_text_onehot = tf.keras.utils.to_categorical(output_text, num_classes=self.text_words + 1)
                 yield (input_title, input_phons_onehot, decoder_input_text), (output_phons_onehot, output_text_onehot)

@@ -16,9 +16,11 @@ class VersetGenerator(Callback):
         if epoch % self.every_epoch == 0:
             text_1 = "SONNET POUR LA MORT DE SON AMIE"
             text_2 = "Amour fou"
+            text_3 = "VIDE"
             generated_text_1 = self.generate_text(text_1, 'ʁ a s', 0) #Ex : (g)râce
             generated_text_2 = self.generate_text(text_2, 'o t e', 13) #Ex : (b)eauté
-            print("\nSample generation at epoch {}: \n{} \n{}".format(epoch + 1, text_1 + ' ' + generated_text_1, text_2 + ' ' + generated_text_2))
+            generated_text_3 = self.generate_text("", 'o t e', 13) #Ex : (b)eauté
+            print("\nSample generation at epoch {}: \n{} \n{} \n{}".format(epoch + 1, text_1 + ' ' + generated_text_1, text_2 + ' ' + generated_text_2, 'VIDE' + ' ' + generated_text_3))
 
     def generate_text(self, input_title, input_phons, input_line):
         tokenized_title = self.data.title_tokenizer.texts_to_sequences([input_title])[0]
