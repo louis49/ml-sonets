@@ -135,8 +135,13 @@ class VersetModel():
 
         line_processing = Dense(units=2*lstm_units, activation="relu", name="line_dense")(encoder_input_line)
 
-        combined_state_h = layers.Concatenate(name="inputs_h_concat")([state_h_title, state_h_phons, line_processing])
-        combined_state_c = layers.Concatenate(name="inputs_c_concat")([state_c_title, state_c_phons, line_processing])
+        forward_state_h = layers.Concatenate()([forward_h_title, forward_h_phons, line_processing])
+        forward_state_c = layers.Concatenate()([forward_c_title, forward_c_phons, line_processing])
+        backward_state_h = layers.Concatenate()([backward_h_title, backward_h_phons, line_processing])
+        backward_state_c = layers.Concatenate()([backward_c_title, backward_c_phons, line_processing])
+
+        #combined_state_h = layers.Concatenate(name="inputs_h_concat")([state_h_title, state_h_phons, line_processing])
+        #combined_state_c = layers.Concatenate(name="inputs_c_concat")([state_c_title, state_c_phons, line_processing])
 
         line_processing_expanded = tf.expand_dims(line_processing, axis=1, name="line_expand")
         encoder_output = layers.Concatenate(axis=1, name="encoder_output_concat")([encoder_output_title, encoder_output_phons, line_processing_expanded])
@@ -151,8 +156,8 @@ class VersetModel():
         #decoder_embedding = layers.LayerNormalization(name="decoder_embedding_norm")(decoder_embedding)
         decoder_embedding = layers.Dropout(drop_out_decoder_input, name="decoder_embedding_dropout")(decoder_embedding)
 
-        decoder_output = layers.LSTM(6 * lstm_units, return_sequences=True, return_state=False, name="decoder_output_LSTM")(
-            decoder_embedding, initial_state=[combined_state_h, combined_state_c])
+        decoder_output = layers.Bidirectional(layers.LSTM(4 * lstm_units, return_sequences=True, return_state=False, name="decoder_output_LSTM"))(
+            decoder_embedding, initial_state=[forward_state_h, forward_state_c, backward_state_h, backward_state_c])
         #decoder_output = layers.LayerNormalization(name="decoder_output_norm")(decoder_output)
         #decoder_output = layers.Dropout(drop_out_decoder_output, name="decoder_output_dropout")(decoder_output)
 
@@ -274,7 +279,7 @@ class VersetModel():
 #Epoch 100/300 107/107 [==============================] - 49s 454ms/step - loss: 0.0949 - accuracy: 0.9638 - custom: 0.9425 - val_loss: 7.6130 - val_accuracy: 0.4876 - val_custom: 0.0100
 #
         best_hyperparameters = HyperParameters()
-        best_hyperparameters.Fixed('verset_lstm_units', value=16) #8
+        best_hyperparameters.Fixed('verset_lstm_units', value=8) #8
         best_hyperparameters.Fixed('verset_encoder_title_embedding_dim', value=80)  # 80
         best_hyperparameters.Fixed('verset_decoder_embedding_dim', value=8)  # 8
 
