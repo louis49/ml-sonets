@@ -1035,7 +1035,7 @@ class Data():
             data_grey = 0.0
             data_white = 0.0
 
-        if train:
+        if train and not tuner:
             print("\nUsing {}% White, {}% Grey, {}% Black".format(data_white * 100, data_grey * 100, data_black * 100))
 
         batch_white = int(data_white * batch_size)
