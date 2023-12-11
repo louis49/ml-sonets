@@ -107,7 +107,7 @@ class PhonModel:
         decoder_embedding_dim = hp.Int("phon_decoder_embedding_dim", min_value=8, max_value=512, step=8, default=128)
         learning_rate = hp.Float('learning_rate', min_value=1e-5, max_value=1e-2, sampling='log', default=0.001)
         # drop_out_encoder = hp.Float('phon_drop_out_encoder', min_value=0.0, max_value=0.5, step=0.05, default=0.38)
-        # drop_out_decoder = hp.Float('phon_drop_out_decoder', min_value=0.0, max_value=0.5, step=0.05, default=0.38)
+        drop_out_decoder = hp.Float('phon_drop_out_decoder', min_value=0.0, max_value=0.5, step=0.05, default=0.38)
         # l1_regularizer = hp.Float('phon_l1_regularizer', min_value=1e-5, max_value=1e-2, sampling='log', default=0.0001)
         # l2_regularizer = hp.Float('phon_l2_regularizer', min_value=1e-5, max_value=1e-2, sampling='log', default=0.0001)
 
@@ -123,7 +123,7 @@ class PhonModel:
         # Entrées
         encoder_input = Input(shape=(self.data.title_max_size,), dtype="int32", name="title_input")
         encoder_embedding = layers.Embedding(self.data.title_words, encoder_embedding_dim)(encoder_input)
-        encoder_embedding = layers.LayerNormalization()(encoder_embedding)
+        #encoder_embedding = layers.LayerNormalization()(encoder_embedding)
         # encoder_embedding = layers.Dropout(drop_out_encoder)(encoder_embedding)
         encoder_output, forward_h, forward_c, backward_h, backward_c = layers.Bidirectional(layers.LSTM(
             lstm_units,
@@ -148,32 +148,25 @@ class PhonModel:
 
         decoder_input = Input(shape=(self.data.phon_max_size * 14 + 1,), dtype="int32", name="decoder_input")
         decoder_embedding = layers.Embedding(self.data.phon_words, decoder_embedding_dim)(decoder_input)
-        decoder_embedding = layers.LayerNormalization()(decoder_embedding)
-        # decoder_embedding = layers.Dropout(drop_out_decoder)(decoder_embedding)
-        decoder_output = layers.LSTM(
+        #decoder_embedding = layers.LayerNormalization()(decoder_embedding)
+        decoder_embedding = layers.Dropout(drop_out_decoder)(decoder_embedding)
+
+        decoder_output = layers.Bidirectional(layers.LSTM(
             2 * lstm_units,
             return_sequences=True,
             return_state=False,
-            # dropout=drop_out_decoder,
-            # recurrent_dropout=drop_out_decoder,
-            # kernel_regularizer=regularizers.l1_l2(l1=l1_regularizer, l2=l2_regularizer),
-            # recurrent_regularizer=regularizers.l1_l2(l1=l1_regularizer, l2=l2_regularizer),
-            # bias_regularizer=regularizers.l1_l2(l1=l1_regularizer, l2=l2_regularizer)
-        )(decoder_embedding, initial_state=encoder_states)
+        ))(decoder_embedding, initial_state=[forward_h, forward_c, backward_h, backward_c])
 
         if attention_decoder:
             attention = layers.MultiHeadAttention(num_heads=num_heads_decoder,
                                                   key_dim=max(decoder_embedding_dim // num_heads_decoder, 1))
             attention_output = attention(query=decoder_output, key=encoder_output, value=encoder_output)
             decoder_output = layers.Concatenate(axis=-1)([decoder_output, attention_output])
-            decoder_output = layers.LayerNormalization()(decoder_output)
+            #decoder_output = layers.LayerNormalization()(decoder_output)
 
         if lstm_layer_decoder:
             decoder_output = layers.LSTM(2 * lstm_units,
                                          return_sequences=True,
-                                         # kernel_regularizer = regularizers.l1_l2(l1=1e-5, l2=1e-4),
-                                         # recurrent_regularizer = regularizers.l1_l2(l1=1e-5, l2=1e-4),
-                                         # bias_regularizer = regularizers.l1_l2(l1=1e-5, l2=1e-4)
                                          )(decoder_output)
 
         decoder_dense = layers.TimeDistributed(layers.Dense(self.data.phon_words + 1, activation='softmax'))
@@ -229,16 +222,14 @@ class PhonModel:
         best_hyperparameters.Fixed('phon_lstm_units', value=128)  # 168 #128
         best_hyperparameters.Fixed('phon_encoder_embedding_dim', value=8)  # 184
         best_hyperparameters.Fixed('phon_decoder_embedding_dim', value=128)  # 184 #192
-        best_hyperparameters.Fixed('learning_rate', value=0.001)  # 0.001
+        best_hyperparameters.Fixed('learning_rate', value=0.005)  # 0.001
         # best_hyperparameters.Fixed('phon_drop_out_encoder', value=0.2)  # 0.38573
-        # best_hyperparameters.Fixed('phon_drop_out_decoder', value=0.6)  # 0.38573
-        best_hyperparameters.Fixed('phon_num_heads_encoder', value=2)  # 10
-        best_hyperparameters.Fixed('phon_num_heads_decoder', value=2)  # 10
-        best_hyperparameters.Fixed('phon_attention_encoder', value=True)
-        best_hyperparameters.Fixed('phon_attention_decoder', value=False)
-        best_hyperparameters.Fixed('phon_lstm_layer_decoder', value=False)
-        # best_hyperparameters.Fixed('phon_l1_regularizer', value=0.0001)
-        # best_hyperparameters.Fixed('phon_l2_regularizer', value=0.001)
+        best_hyperparameters.Fixed('phon_drop_out_decoder', value=0.33)
+        best_hyperparameters.Fixed('phon_num_heads_encoder', value=8)  # 10
+        best_hyperparameters.Fixed('phon_num_heads_decoder', value=8)  # 10
+        best_hyperparameters.Fixed('phon_attention_encoder', value=False)
+        best_hyperparameters.Fixed('phon_attention_decoder', value=True)
+        best_hyperparameters.Fixed('phon_lstm_layer_decoder', value=True)
 
         if use_tuner:
             tuner = BayesianOptimization(
