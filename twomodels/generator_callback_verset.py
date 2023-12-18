@@ -6,7 +6,7 @@ import tensorflow as tf
 
 class VersetGenerator(Callback):
 
-    def __init__(self, model, data: Data, every_epoch=1):
+    def __init__(self, model, data: Data, every_epoch=5):
         super().__init__()
         self.data = data
         self.every_epoch = every_epoch

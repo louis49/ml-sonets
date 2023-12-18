@@ -11,7 +11,7 @@ NB_EXAMPLES_MODEL_1_WHITE = 25000
 NB_EXAMPLES_MODEL_1_GREY = 25000
 NB_EXAMPLES_MODEL_2_WHITE = 25000
 SIZE_PATH = "data/sizes.json"
-RATIO_TEST = 0.002
+RATIO_TEST = 0.01
 
 TOKENIZER_TITLE_PATH = "data/tokenizer_title.json"
 TOKENIZER_TEXT_PATH = "data/tokenizer_text.json"
@@ -685,10 +685,9 @@ class Data():
                     title = sonnet['title']
                     theme = sonnet['theme']
                     for i, line in enumerate(sonnet['lines']):
-                        for phon in line[
-                            'phon']:  # Il y a trois phons : un pour chaque type de rime (pauvre, riche, etc...)
+                        for phon in line['phon']:  # Il y a trois phons : un pour chaque type de rime (pauvre, riche, etc...)
                             words_dictionnary_phon = list(themes_phons_words[theme][phon])
-                            num_samples = len(words_dictionnary_phon)  # min(len(words_dictionnary_phon), 2)
+                            num_samples = min(len(words_dictionnary_phon), 5)
                             selected_words = random.sample(words_dictionnary_phon, num_samples)
                             for word in selected_words:
                                 new_line_array = line['text'].split(' ')[1:-1]
@@ -750,7 +749,7 @@ class Data():
                     print(f"\rGenerating progress: {progress_percent:.2f}%", end="")
                     for word in phons_words[phon]:
                         for _ in range(5):
-                            taille_verset = random.randint(0, self.text_max_size - 2)
+                            taille_verset = random.randint(1, self.text_max_size - 2)
 
                             selected_words = random.choices(list(dictionary.keys()), weights=dictionary.values(),
                                                             k=taille_verset)
