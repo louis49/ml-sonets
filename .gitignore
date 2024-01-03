@@ -7,3 +7,5 @@ twomodels/debug
 twomodels/tuner
 twomodels/model
 twomodels/logs
+phonemes/logs
+phonemes/learn_phonemes/data
