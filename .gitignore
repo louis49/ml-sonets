@@ -9,3 +9,5 @@ twomodels/model
 twomodels/logs
 phonemes/logs
 phonemes/learn_phonemes/data
+phonemes/learn_phonemes/model
+phonemes/tuner

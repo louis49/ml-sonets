@@ -4,13 +4,14 @@ from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from keras.src.preprocessing.text import tokenizer_from_json
 
-RATIO_TEST = 0.005
-TOKENIZER_WORD_PATH = "./learn_phonemes/data/tokenizer_word_NEW2.json"
-TOKENIZER_PHONS_PATH = "./learn_phonemes/data/tokenizer_phons_NEW2.json"
-SIZE_PATH = "./learn_phonemes/data/sizes_NEW2.json"
-DATA_LEARN_PATH = "./learn_phonemes/data/word_phon_learn_NEW2.tfrecord"
-DATA_TEST_PATH = "./learn_phonemes/data/word_phon_test_NEW2.tfrecord"
-DATA_PATH = "./learn_phonemes/data/word_phon_NEW2.tfrecord"
+RATIO_TEST = 0.05 #0.005
+VALUE_TEST = 800
+TOKENIZER_WORD_PATH = "./learn_phonemes/data/tokenizer_word_10C.json"
+TOKENIZER_PHONS_PATH = "./learn_phonemes/data/tokenizer_phons_10C.json"
+SIZE_PATH = "./learn_phonemes/data/sizes_10C.json"
+DATA_LEARN_PATH = "./learn_phonemes/data/word_phon_learn_10C.tfrecord"
+DATA_TEST_PATH = "./learn_phonemes/data/word_phon_test_10C.tfrecord"
+DATA_PATH = "./learn_phonemes/data/word_phon_10C.tfrecord"
 COMPRESSION_TYPE = "GZIP"
 
 nasal_mapping = {
@@ -21,6 +22,7 @@ nasal_mapping = {
 }
 class Data():
     def __init__(self):
+
         print("Init Data")
         self.word_tokenizer = None
         self.phons_tokenizer = None
@@ -30,6 +32,10 @@ class Data():
         self.phons_index_size = 0
         self.records_learn = 0
         self.records_test = 0
+        self.word_learn = ""
+        self.word_valid = ""
+        self.phon_learn = ""
+        self.phon_valid = ""
 
     def analyze(self, dictionnaire):
         def write_tfrecord(sequence, writer):
@@ -99,36 +105,62 @@ class Data():
 
         def write_data(writer, sequences):
             mapping = []
-            for sequence in sequences:
+            for index, sequence in enumerate(sequences):
+                progress_percent = (float(index)/len(sequences)) * 100.0
+                print(f"\rGenerating progress: {progress_percent:.2f}%", end="")
                 subsequences_phons = generate_subsequences_tokenized(sequence['phons'])
                 sequence_word_padded = pad_sequences([sequence['word']], maxlen=self.word_max_size, padding='post')[0]
                 for subsequence_phons in subsequences_phons:
                     sequence_phons_padded = pad_sequences([subsequence_phons], maxlen=self.phons_max_size, padding='post')[0]
                     mapping.append({'word': sequence_word_padded, 'phons': sequence_phons_padded})
-            for sequence in mapping:
+            print(f"\rGenerating ended")
+            for index, sequence in enumerate(mapping):
+                progress_percent = (float(index) / len(mapping)) * 100.0
+                print(f"\rWriting progress: {progress_percent:.2f}%", end="")
                 write_tfrecord(sequence=sequence, writer=writer)
+            print(f"\rWriting ended")
 
         sequences = []
         for sequence_word, sequence_phons in zip(sequences_word, sequences_phons):
             sequences.append({'word': sequence_word, 'phons': sequence_phons})
+
+        word_length_count = {}
+        for seq in sequences:
+            # Calculer la longueur du mot
+            word_length = len(seq['word'])
+
+            # Incrémenter le compteur pour cette longueur de mot
+            if word_length in word_length_count:
+                word_length_count[word_length] += 1
+            else:
+                word_length_count[word_length] = 1
+
+        sequences = [seq for seq in sequences if len(seq['word']) <= 24]
         random.shuffle(sequences)
-        sequences = sequences[:100000]
+        sequences = sequences[:50000]
 
         index_part = int(len(sequences) * RATIO_TEST)
-        data_learn = sequences[index_part:]
-        data_test = sequences[:index_part]
+        data_learn = sequences[VALUE_TEST:]
+        data_test = sequences[:VALUE_TEST]
 
-        word = ''.join(self.word_tokenizer.sequences_to_texts([data_learn[0]['word']])[0].split(' '))
-        phon = ''.join(self.phons_tokenizer.sequences_to_texts([data_learn[0]['phons']])[0].replace('$','').replace('#','').split(' '))
-        print("Le mot " + word + " a été ajouté avec la phonétique " + phon)
+        self.word_learn = ''.join(self.word_tokenizer.sequences_to_texts([data_learn[0]['word']])[0].split(' '))
+        self.phon_learn = ''.join(self.phons_tokenizer.sequences_to_texts([data_learn[0]['phons']])[0].replace('$','').replace('#','').split(' '))
+        print("Le mot " + self.word_learn + " a été ajouté à la base de LEARN avec la phonétique " + self.phon_learn)
+
+        self.word_valid = ''.join(self.word_tokenizer.sequences_to_texts([data_test[0]['word']])[0].split(' '))
+        self.phon_valid = ''.join( self.phons_tokenizer.sequences_to_texts([data_test[0]['phons']])[0].replace('$', '').replace('#', '').split(' '))
+        print("Le mot " + self.word_valid + " a été ajouté à la base de TEST avec la phonétique " + self.phon_valid)
 
         options = tf.io.TFRecordOptions(compression_type=COMPRESSION_TYPE)
+
         with tf.io.TFRecordWriter(DATA_LEARN_PATH, options=options) as writer_learn:
+            print("Generating Learn Data")
             write_data(writer_learn, data_learn)
         with tf.io.TFRecordWriter(DATA_TEST_PATH, options=options) as writer_test:
+            print("Generating Test Data")
             write_data(writer_test, data_test)
-        with tf.io.TFRecordWriter(DATA_PATH, options=options) as writer:
-            write_data(writer, sequences)
+        #with tf.io.TFRecordWriter(DATA_PATH, options=options) as writer:
+        #    write_data(writer, sequences)
 
         self.records_learn = count_tfrecord_samples(DATA_LEARN_PATH)
         self.records_test = count_tfrecord_samples(DATA_TEST_PATH)
@@ -141,7 +173,11 @@ class Data():
                 'word_index_size': self.word_index_size + 1,  # + 1 pour le 0
                 'phons_index_size': self.phons_index_size + 1,  # + 1 pour le 0
                 'records_learn': self.records_learn,
-                'records_test': self.records_test
+                'records_test': self.records_test,
+                'word_learn': self.word_learn,
+                'phon_learn': self.phon_learn,
+                'word_valid': self.word_valid,
+                'phon_valid': self.phon_valid,
             }, file)
 
 
@@ -163,6 +199,10 @@ class Data():
             self.phons_index_size = sizes['phons_index_size']
             self.records_learn = sizes['records_learn']
             self.records_test = sizes['records_test']
+            self.word_learn = sizes['word_learn']
+            self.phon_learn = sizes['phon_learn']
+            self.word_valid = sizes['word_valid']
+            self.phon_valid = sizes['phon_valid']
 
     def load_from_tfrecord(self, filename, batch_size, word_max_size, phons_max_size):
         feature = {

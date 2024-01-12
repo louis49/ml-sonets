@@ -268,10 +268,11 @@ class Data():
         def sequence_and_pad_model2(model_2_data, limit=False):
             sequences = []
             for data in model_2_data:
-                line = data['phons'].rjust(3, '.')[::-1]
+                # On inverse les phons pour être conforme au modèle 1
+                phons = data['phons'].rjust(3, '.')[::-1]
 
                 title_tokens = self.title_tokenizer.texts_to_sequences([data['title']])[0]
-                phons_tokens = self.phon_tokenizer.texts_to_sequences([line])[0]
+                phons_tokens = self.phon_tokenizer.texts_to_sequences([phons])[0]
                 texts_tokens = self.text_tokenizer.texts_to_sequences([data['text']])[0]
 
                 if limit and len(texts_tokens) >= 3:
