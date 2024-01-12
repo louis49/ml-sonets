@@ -214,8 +214,10 @@ class Data():
             return tf.io.parse_single_example(example_proto, feature)
 
         raw_dataset = tf.data.TFRecordDataset(filename, compression_type=COMPRESSION_TYPE)
-        parsed_dataset = raw_dataset.map(_parse_function, num_parallel_calls=tf.data.AUTOTUNE).take(
-            batch_size).prefetch(buffer_size=tf.data.AUTOTUNE)
+        parsed_dataset = (raw_dataset.map(_parse_function, num_parallel_calls=tf.data.AUTOTUNE)
+                          .shuffle(buffer_size=150)
+                          .take(batch_size)
+                          .prefetch(buffer_size=tf.data.AUTOTUNE))
         return parsed_dataset
 
     def generate_data(self, batch_size, train):

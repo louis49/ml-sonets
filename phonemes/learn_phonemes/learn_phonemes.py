@@ -9,8 +9,8 @@ from tensorboard.plugins.hparams import api as hp
 from tensorflow.python.keras.callbacks import Callback
 from keras.preprocessing.sequence import pad_sequences
 #{"ongoing_trials": {"tuner0": "0000"},
-BATCH_SIZE_LEARN = 400
-BATCH_SIZE_TEST = 400
+BATCH_SIZE_LEARN = 4000
+BATCH_SIZE_TEST = 500
 MODEL_PATH = "./model/model.keras"
 LOGS_FOLDER_PATH = "./logs/"
 
@@ -70,7 +70,7 @@ class PhonemeGenerator(Callback):
         self.every_epoch = every_epoch
 
     def on_epoch_end(self, epoch, logs=None):
-        if (epoch + 1) % self.every_epoch == 0 and epoch != 0:
+        if (epoch + 1) % self.every_epoch == 0 : #and epoch != 0
             generated_phon_learn = self.generate_text(self.data.word_learn)
             generated_phon_valid = self.generate_text(self.data.word_valid)
 
@@ -175,59 +175,82 @@ class Learn():
         embedding_dim_encoder_input = hyperparameters.Int("embedding_dim_encoder_input", min_value=32, max_value=1024, step=32, default=128) #, default=128
         embedding_dim_decoder_input = hyperparameters.Int("embedding_dim_decoder_input", min_value=32, max_value=1024, step=32, default=128) #default=128
 
-        lstm_layer_decoder = True #hyperparameters.Boolean("lstm_layer_decoder", default=False)
-        lstm_units_decoder = hyperparameters.Int("lstm_units_decoder", min_value=1, max_value=256, step=1, parent_values=True) #parent_name="lstm_layer_decoder",
+        lstm_layer_decoder = False #hyperparameters.Boolean("lstm_layer_decoder", default=False)
+        lstm_units_decoder = hyperparameters.Int("lstm_units_decoder", min_value=32, max_value=1024, step=32, parent_values=True) #parent_name="lstm_layer_decoder",
 
-        drop_out_encoder_input = 0 #hyperparameters.Float('drop_out_encoder_input', min_value=0, max_value=0.95, step=0.05, default=0.05)
-        drop_out_decoder_input = 0 #hyperparameters.Float('drop_out_decoder_input', min_value=0, max_value=0.95, step=0.05, default=0.05)
-        drop_out_decoder_output = 0 #hyperparameters.Float('drop_out_decoder_output', min_value=0, max_value=0.95, step=0.05, default=0.0)
+        drop_out_encoder_input = 0. #hyperparameters.Float('drop_out_encoder_input', min_value=0, max_value=0.95, step=0.05, default=0.05)
+        drop_out_decoder_input = 0. #hyperparameters.Float('drop_out_decoder_input', min_value=0, max_value=0.95, step=0.05, default=0.05)
+        drop_out_decoder_output = 0. #hyperparameters.Float('drop_out_decoder_output', min_value=0, max_value=0.95, step=0.05, default=0.0)
 
         reg_r1_encoder = 0.0 #hyperparameters.Float('reg_r1_encoder', min_value=1e-6, max_value=0.1, sampling='log', default=0.001)
         reg_r2_encoder = 0.0 #hyperparameters.Float('reg_r2_encoder', min_value=1e-6, max_value=0.1, sampling='log', default=0.001)
         reg_r1_decoder = 0.0 #hyperparameters.Float('reg_r1_decoder', min_value=1e-6, max_value=0.1, sampling='log', default=0.001)
         reg_r2_decoder = 0.0 #hyperparameters.Float('reg_r2_decoder', min_value=1e-6, max_value=0.1, sampling='log', default=0.001)
 
-        attention_encoder = True #hyperparameters.Boolean("attention_encoder", default=False)
-        attention_decoder = True #hyperparameters.Boolean("attention_decoder", default=True)
+        attention_encoder = False #hyperparameters.Boolean("attention_encoder", default=False)
+        attention_decoder = False #hyperparameters.Boolean("attention_decoder", default=True)
 
         num_head_attention_encoder = hyperparameters.Int("num_head_attention_encoder", min_value=1, max_value=256, step=1, default=24, parent_values=True)  # ,parent_name="attention_encoder"
         num_head_attention_decoder = hyperparameters.Int("num_head_attention_decoder", min_value=1, max_value=256, step=1, default=24, parent_values=True)  # ,parent_name="attention_decoder",
 
-        gru = True  # hyperparameters.Boolean("gru", default=False)
+        gru = False  # hyperparameters.Boolean("gru", default=False)
         gru_output = False  # hyperparameters.Boolean("gru_output", default=False)
 
         encoder_input = Input(shape=(self.data.word_max_size), dtype="int32", name="encoder_input")
-        encoder_embedding = layers.Embedding(self.data.word_index_size, embedding_dim_encoder_input,
-                                             name="encoder_embedding", mask_zero=True)(encoder_input)  #
+        encoder_embedding = layers.Embedding(self.data.word_index_size, embedding_dim_encoder_input, name="encoder_embedding", mask_zero=True)(encoder_input) #
         encoder_embedding = layers.LayerNormalization(name="encoder_norm")(encoder_embedding)
         encoder_embedding = layers.Dropout(drop_out_encoder_input, name="encoder_dropout")(encoder_embedding)
 
         if gru:
+            encoder_output1, memory_state = layers.GRU(lstm_units,
+                                                      return_state=True,
+                                                      return_sequences=True,
+                                                      kernel_regularizer=regularizers.L1L2(reg_r1_encoder, reg_r2_encoder),
+                                                      )(encoder_embedding)
+
+            encoder_output2, memory_state = layers.GRU(lstm_units,
+                                                      return_state=True,
+                                                      return_sequences=True,
+                                                      kernel_regularizer=regularizers.L1L2(reg_r1_encoder, reg_r2_encoder),
+                                                      )(encoder_output1)
+
             encoder_output, memory_state = layers.GRU(lstm_units,
                                                       return_state=True,
                                                       return_sequences=True,
-                                                      kernel_regularizer=regularizers.L1L2(reg_r1_encoder,
-                                                                                           reg_r2_encoder),
-                                                      )(encoder_embedding)
+                                                      kernel_regularizer=regularizers.L1L2(reg_r1_encoder, reg_r2_encoder),
+                                                      )(encoder_output2)
+
         else:
             encoder_output, memory_state, carry_state = layers.LSTM(lstm_units,
                                                                     return_state=True,
                                                                     return_sequences=True,
-                                                                    kernel_regularizer=regularizers.L1L2(reg_r1_encoder,
-                                                                                                         reg_r2_encoder),
+                                                                    kernel_regularizer=regularizers.L1L2(reg_r1_encoder, reg_r2_encoder),
                                                                     )(encoder_embedding)
+
+            encoder_output, memory_state, carry_state = layers.LSTM(lstm_units,
+                                                                    return_state=True,
+                                                                    return_sequences=True,
+                                                                    kernel_regularizer=regularizers.L1L2(reg_r1_encoder, reg_r2_encoder),
+                                                                    )(encoder_output)
+        
+            encoder_output, memory_state, carry_state = layers.LSTM(lstm_units,
+                                                                    return_state=True,
+                                                                    return_sequences=True,
+                                                                    kernel_regularizer=regularizers.L1L2(reg_r1_encoder, reg_r2_encoder),
+                                                                    )(encoder_output)
 
         if attention_encoder:
             key_dim = max(lstm_units // num_head_attention_encoder, 1)
-            attention = layers.MultiHeadAttention(num_heads=num_head_attention_encoder, key_dim=key_dim,
-                                                  name="encoder_attention")
+            attention = layers.MultiHeadAttention(num_heads=num_head_attention_encoder, key_dim=key_dim, name="encoder_attention")
             attention_output = attention(query=encoder_output, key=encoder_output, value=encoder_output)
-            encoder_output = layers.Concatenate(axis=-1, name="attention_encoder_concat")(
-                [encoder_output, attention_output])
+
+            #attention = layers.AdditiveAttention(name="encoder_attention")
+            #attention_output = attention([encoder_output, encoder_output, encoder_output])
+
+            encoder_output = layers.Concatenate(axis=-1, name="attention_encoder_concat")([encoder_output, attention_output])
 
         decoder_input = Input(shape=(self.data.phons_max_size - 1), dtype="int32", name="decoder_input")
-        decoder_embedding = layers.Embedding(self.data.phons_index_size, embedding_dim_decoder_input,
-                                             name="decoder_embedding", mask_zero=True)(decoder_input)
+        decoder_embedding = layers.Embedding(self.data.phons_index_size, embedding_dim_decoder_input, name="decoder_embedding", mask_zero=True)(decoder_input) #
         decoder_embedding = layers.LayerNormalization(name="decoder_input_norm")(decoder_embedding)
         decoder_embedding = layers.Dropout(drop_out_decoder_input, name="decoder_input_dropout")(decoder_embedding)
 
@@ -248,7 +271,11 @@ class Learn():
             key_dim = max(lstm_units // num_head_attention_decoder, 1)
             attention = layers.MultiHeadAttention(num_heads=num_head_attention_decoder, key_dim=key_dim, name="decoder_attention")
             attention_output = attention(query=decoder_output, key=encoder_output, value=encoder_output)
-            decoder_output = layers.Concatenate(axis=-1, name="attention_decoder_concat")( [decoder_output, attention_output])
+
+            #attention = layers.Attention(name="decoder_attention")
+            #attention_output = attention([decoder_output, encoder_output])
+
+            decoder_output = layers.Concatenate(axis=-1, name="attention_decoder_concat")([decoder_output, attention_output])
             # decoder_output = layers.LayerNormalization(name="attention_norm")(decoder_output)
             # decoder_output = layers.Dropout(drop_out_decoder_output, name="attention_dropout")(decoder_output)
 
@@ -270,8 +297,8 @@ class Learn():
             decoder_input],
             outputs=decoder_output,
             name="Word2PhonemesModel")
-        model.compile(optimizer=optimizers.legacy.Adam(learning_rate=learning_rate),
-                      loss='categorical_crossentropy',
+        model.compile(optimizer="rmsprop" , #optimizers.legacy.Adam(learning_rate=learning_rate)
+                      loss='categorical_crossentropy',#categorical_crossentropy
                       metrics=['accuracy', last_word, sequence],
                       )
 
@@ -307,18 +334,18 @@ class Learn():
 
         best_hyperparameters = HyperParameters()
 
-        best_hyperparameters.Fixed('lstm_units', value=20)  # 22-62
-        best_hyperparameters.Fixed('embedding_dim_encoder_input', value=128)
-        best_hyperparameters.Fixed('embedding_dim_decoder_input', value=128)
-        best_hyperparameters.Fixed('learning_rate', value=0.0001)
+        best_hyperparameters.Fixed('lstm_units', value=256)
+        best_hyperparameters.Fixed('embedding_dim_encoder_input', value=256)
+        best_hyperparameters.Fixed('embedding_dim_decoder_input', value=256)
+        best_hyperparameters.Fixed('learning_rate', value=0.00001)
         best_hyperparameters.Fixed('lstm_layer_decoder', value=True)
-        best_hyperparameters.Fixed('lstm_units_decoder', value=20)
-        best_hyperparameters.Fixed('drop_out_encoder_input', value=0.05)
-        best_hyperparameters.Fixed('drop_out_decoder_input', value=0.05)
+        best_hyperparameters.Fixed('lstm_units_decoder', value=256)
+        best_hyperparameters.Fixed('drop_out_encoder_input', value=0.)
+        best_hyperparameters.Fixed('drop_out_decoder_input', value=0.)
         best_hyperparameters.Fixed('drop_out_decoder_output', value=0.)
         best_hyperparameters.Fixed('reg_r1_encoder', value=0.0)
         best_hyperparameters.Fixed('reg_r2_encoder', value=0.0)
-        best_hyperparameters.Fixed('reg_r1_decoder', value=0.0) #0.01
+        best_hyperparameters.Fixed('reg_r1_decoder', value=0.0)
         best_hyperparameters.Fixed('reg_r2_decoder', value=0.0)
         best_hyperparameters.Fixed('attention_encoder', value=True)
         best_hyperparameters.Fixed('num_head_attention_encoder', value=8)
@@ -349,7 +376,7 @@ class Learn():
 
         stop_callback = StopIfNoDescendingSlopeAndMaxAccuracy(max_epochs=5, threshold=1.0)
 
-        epoch_size_train = self.data.records_learn
+        epoch_size_train = self.data.records_learn // 10
         epoch_size_test = self.data.records_test
 
         if tuner:
